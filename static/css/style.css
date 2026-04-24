@@ -33,13 +33,13 @@ body {
     padding: 2rem;
 }
 
-/* Glassmorphism utility */
+/* Glassmorphism utility - Optimized */
 .glass-card {
     background-color: var(--card-bg);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.5);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
     border-radius: 18px;
 }
 
@@ -452,9 +452,8 @@ input:focus, select:focus {
     position: absolute;
     top: -10%; right: -10%;
     width: 50vw; height: 50vw;
-    background: rgba(255,255,255,0.1);
+    background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
     border-radius: 50%;
-    filter: blur(60px);
 }
 
 .hero-section::after {
@@ -462,9 +461,8 @@ input:focus, select:focus {
     position: absolute;
     bottom: -10%; left: -10%;
     width: 40vw; height: 40vw;
-    background: rgba(255,255,255,0.1);
+    background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%);
     border-radius: 50%;
-    filter: blur(40px);
 }
 
 .hero-content {
