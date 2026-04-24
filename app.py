@@ -306,4 +306,4 @@ def ai_insight(student_id):
         return jsonify({"error": f"Failed to generate insight: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)
