@@ -1,0 +1,80 @@
+# Pre-loaded NCERT Syllabus Data (Maths)
+
+NCERT_MATH_SYLLABUS = {
+    8: [
+        "Rational Numbers",
+        "Linear Equations in One Variable",
+        "Understanding Quadrilaterals",
+        "Data Handling",
+        "Squares and Square Roots",
+        "Cubes and Cube Roots",
+        "Comparing Quantities",
+        "Algebraic Expressions and Identities",
+        "Mensuration",
+        "Exponents and Powers",
+        "Direct and Inverse Proportions",
+        "Factorisation",
+        "Introduction to Graphs"
+    ],
+    9: [
+        "Number Systems",
+        "Polynomials",
+        "Coordinate Geometry",
+        "Linear Equations in Two Variables",
+        "Introduction to Euclid's Geometry",
+        "Lines and Angles",
+        "Triangles",
+        "Quadrilaterals",
+        "Circles",
+        "Heron's Formula",
+        "Surface Areas and Volumes",
+        "Statistics"
+    ],
+    10: [
+        "Real Numbers",
+        "Polynomials",
+        "Pair of Linear Equations in Two Variables",
+        "Quadratic Equations",
+        "Arithmetic Progressions",
+        "Triangles",
+        "Coordinate Geometry",
+        "Introduction to Trigonometry",
+        "Some Applications of Trigonometry",
+        "Circles",
+        "Areas Related to Circles",
+        "Surface Areas and Volumes",
+        "Statistics",
+        "Probability"
+    ],
+    11: [
+        "Sets",
+        "Relations and Functions",
+        "Trigonometric Functions",
+        "Complex Numbers and Quadratic Equations",
+        "Linear Inequalities",
+        "Permutations and Combinations",
+        "Binomial Theorem",
+        "Sequences and Series",
+        "Straight Lines",
+        "Conic Sections",
+        "Introduction to Three Dimensional Geometry",
+        "Limits and Derivatives",
+        "Statistics",
+        "Probability"
+    ],
+    12: [
+        "Relations and Functions",
+        "Inverse Trigonometric Functions",
+        "Matrices",
+        "Determinants",
+        "Continuity and Differentiability",
+        "Application of Derivatives",
+        "Integrals",
+        "Application of Integrals",
+        "Differential Equations",
+        "Vector Algebra",
+        "Three Dimensional Geometry",
+        "Linear Programming",
+        "Probability"
+    ]
+}

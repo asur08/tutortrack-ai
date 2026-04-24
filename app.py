@@ -1,15 +1,13 @@
 import os
 import datetime
-import matplotlib
-matplotlib.use('Agg')  # Headless mode for matplolib
-import matplotlib.pyplot as plt
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_sqlalchemy import SQLAlchemy
 import google.generativeai as genai
+from ncert_data import NCERT_MATH_SYLLABUS
 
-# Load environment variables
 load_dotenv()
 
 # Configure Gemini
@@ -20,104 +18,78 @@ if GEMINI_API_KEY:
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "fallback_local_secret_key_change_in_production")
 
-# Setup Login Manager
+# Database Configuration
+DB_URL = os.environ.get('DATABASE_URL')
+if DB_URL and DB_URL.startswith('postgres://'):
+    DB_URL = DB_URL.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = DB_URL or 'sqlite:///tutortrack.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+# Login Manager
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Database Configuration
-DB_URL = os.environ.get('DATABASE_URL')
-if DB_URL and DB_URL.startswith('postgres'):
-    USE_POSTGRES = True
-    if DB_URL.startswith('postgres://'):
-        DB_URL = DB_URL.replace('postgres://', 'postgresql://', 1)
-else:
-    USE_POSTGRES = False
+# --- Models ---
+class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(20), default='tutor')
+    courses = db.relationship('CourseClass', backref='tutor', lazy=True, cascade="all, delete-orphan")
 
-def get_db_connection():
-    if USE_POSTGRES:
-        import psycopg2
-        from psycopg2.extras import DictCursor
-        conn = psycopg2.connect(DB_URL, cursor_factory=DictCursor)
-        return conn
-    else:
-        import sqlite3
-        conn = sqlite3.connect('tutortrack.db')
-        conn.row_factory = sqlite3.Row
-        return conn
+class CourseClass(db.Model):
+    __tablename__ = 'course_classes'
+    id = db.Column(db.Integer, primary_key=True)
+    grade_level = db.Column(db.Integer, nullable=False)
+    subject = db.Column(db.String(100), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    students = db.relationship('Student', backref='course', lazy=True, cascade="all, delete-orphan")
+    topics = db.relationship('Topic', backref='course', lazy=True, cascade="all, delete-orphan")
 
-def execute_query(conn, query, params=(), commit=False, fetchone=False, fetchall=False):
-    if USE_POSTGRES:
-        query = query.replace('?', '%s')
-    cur = conn.cursor()
-    cur.execute(query, params)
-    if commit:
-        conn.commit()
-    result = None
-    if fetchone:
-        result = cur.fetchone()
-    elif fetchall:
-        result = cur.fetchall()
-    cur.close()
-    return result
+class Student(db.Model):
+    __tablename__ = 'students'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    roll_number = db.Column(db.String(50))
+    course_id = db.Column(db.Integer, db.ForeignKey('course_classes.id'), nullable=False)
+    test_records = db.relationship('TestRecord', backref='student', lazy=True, cascade="all, delete-orphan")
+    
+    @property
+    def average_percentage(self):
+        if not self.test_records: return 0.0
+        total_perc = sum((r.marks_obtained / r.total_marks) * 100 for r in self.test_records)
+        return total_perc / len(self.test_records)
 
-# User Model for Flask-Login
-class User(UserMixin):
-    def __init__(self, id, username, password_hash, role):
-        self.id = id
-        self.username = username
-        self.password_hash = password_hash
-        self.role = role
+class Topic(db.Model):
+    __tablename__ = 'topics'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    is_completed = db.Column(db.Boolean, default=False)
+    is_custom = db.Column(db.Boolean, default=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course_classes.id'), nullable=False)
+
+class TestRecord(db.Model):
+    __tablename__ = 'test_records'
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    topic_name = db.Column(db.String(200), nullable=True) # Optional link to what test was about
+    marks_obtained = db.Column(db.Integer, nullable=False)
+    total_marks = db.Column(db.Integer, default=100)
+    test_date = db.Column(db.Date, nullable=False)
+
 
 @login_manager.user_loader
 def load_user(user_id):
-    conn = get_db_connection()
-    user_data = execute_query(conn, 'SELECT * FROM users WHERE id = ?', (user_id,), fetchone=True)
-    conn.close()
-    if user_data:
-        return User(id=str(user_data['id']), username=user_data['username'], password_hash=user_data['password_hash'], role=user_data['role'])
-    return None
+    return User.query.get(int(user_id))
 
-def init_db():
-    conn = get_db_connection()
-    if USE_POSTGRES:
-        pk_type = "SERIAL PRIMARY KEY"
-        bool_default = "DEFAULT FALSE"
-    else:
-        pk_type = "INTEGER PRIMARY KEY AUTOINCREMENT"
-        bool_default = "DEFAULT 0"
+# Initialize DB tables
+with app.app_context():
+    db.create_all()
 
-    execute_query(conn, f'''
-        CREATE TABLE IF NOT EXISTS users (
-            id {pk_type},
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            role TEXT DEFAULT 'tutor'
-        )
-    ''', commit=True)
-
-    execute_query(conn, f'''
-        CREATE TABLE IF NOT EXISTS students (
-            id {pk_type},
-            student_name TEXT NOT NULL,
-            subject_topic TEXT NOT NULL,
-            marks_obtained INTEGER NOT NULL,
-            total_marks INTEGER DEFAULT 100,
-            test_date DATE NOT NULL
-        )
-    ''', commit=True)
-    
-    execute_query(conn, f'''
-        CREATE TABLE IF NOT EXISTS syllabus (
-            id {pk_type},
-            topic_name TEXT NOT NULL,
-            status BOOLEAN {bool_default}
-        )
-    ''', commit=True)
-    
-    conn.close()
-
-init_db()
 
 # --- Auth Routes ---
 @app.route('/signup', methods=['GET', 'POST'])
@@ -129,18 +101,14 @@ def signup():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        conn = get_db_connection()
-        existing_user = execute_query(conn, 'SELECT id FROM users WHERE username = ?', (username,), fetchone=True)
-        
-        if existing_user:
-            conn.close()
+        if User.query.filter_by(username=username).first():
             flash('Username already exists.', 'error')
             return redirect(url_for('signup'))
             
         hashed_password = generate_password_hash(password)
-        execute_query(conn, 'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)', 
-                      (username, hashed_password, 'tutor'), commit=True)
-        conn.close()
+        new_user = User(username=username, password_hash=hashed_password, role='tutor')
+        db.session.add(new_user)
+        db.session.commit()
         
         flash('Account created successfully! Please log in.', 'success')
         return redirect(url_for('login'))
@@ -156,12 +124,9 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        conn = get_db_connection()
-        user_data = execute_query(conn, 'SELECT * FROM users WHERE username = ?', (username,), fetchone=True)
-        conn.close()
+        user = User.query.filter_by(username=username).first()
         
-        if user_data and check_password_hash(user_data['password_hash'], password):
-            user = User(id=str(user_data['id']), username=user_data['username'], password_hash=user_data['password_hash'], role=user_data['role'])
+        if user and check_password_hash(user.password_hash, password):
             login_user(user)
             return redirect(url_for('dashboard'))
         else:
@@ -175,143 +140,162 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+
 # --- Main App Routes ---
 @app.route('/')
 @login_required
 def dashboard():
-    conn = get_db_connection()
-    records = execute_query(conn, 'SELECT * FROM students ORDER BY test_date DESC', fetchall=True)
-    syllabus_items = execute_query(conn, 'SELECT * FROM syllabus ORDER BY id DESC', fetchall=True)
-    conn.close()
+    courses = CourseClass.query.filter_by(user_id=current_user.id).all()
+    current_date = datetime.datetime.now().strftime("%A, %B %d, %Y")
+    return render_template('index.html', courses=courses, current_date=current_date)
+
+@app.route('/create_course', methods=['POST'])
+@login_required
+def create_course():
+    grade_level = int(request.form['grade_level'])
+    subject = request.form['subject']
     
-    pending_topics = [item for item in syllabus_items if not item['status']]
-    covered_topics = [item for item in syllabus_items if item['status']]
+    new_course = CourseClass(grade_level=grade_level, subject=subject, user_id=current_user.id)
+    db.session.add(new_course)
+    db.session.flush() # Get ID before commit
     
-    # Format date for dashboard
+    # Auto-populate NCERT syllabus if applicable
+    if subject.lower() == 'math' and grade_level in NCERT_MATH_SYLLABUS:
+        for topic_name in NCERT_MATH_SYLLABUS[grade_level]:
+            t = Topic(name=topic_name, course_id=new_course.id, is_custom=False)
+            db.session.add(t)
+            
+    db.session.commit()
+    return redirect(url_for('dashboard'))
+
+@app.route('/course/<int:course_id>')
+@login_required
+def view_course(course_id):
+    course = CourseClass.query.get_or_404(course_id)
+    if course.user_id != current_user.id:
+        return "Unauthorized", 403
+        
+    students = course.students
+    topics = course.topics
+    pending_topics = [t for t in topics if not t.is_completed]
+    covered_topics = [t for t in topics if t.is_completed]
+    
+    # Analytics Logic
+    class_average = 0.0
+    students_with_records = [s for s in students if len(s.test_records) > 0]
+    
+    top_performers = []
+    needs_support = []
+    
+    if students_with_records:
+        class_average = sum(s.average_percentage for s in students_with_records) / len(students_with_records)
+        for s in students_with_records:
+            if s.average_percentage < (class_average * 0.8):
+                needs_support.append(s)
+            elif s.average_percentage > (class_average * 1.1):
+                top_performers.append(s)
+
     current_date = datetime.datetime.now().strftime("%A, %B %d, %Y")
     
-    return render_template('index.html', records=records, pending_topics=pending_topics, covered_topics=covered_topics, current_date=current_date)
+    return render_template('course.html', course=course, students=students, 
+                           pending_topics=pending_topics, covered_topics=covered_topics,
+                           class_average=class_average, top_performers=top_performers, 
+                           needs_support=needs_support, current_date=current_date)
 
-@app.route('/add_marks', methods=['POST'])
+@app.route('/course/<int:course_id>/add_student', methods=['POST'])
 @login_required
-def add_marks():
-    student_name = request.form['student_name']
-    subject_topic = request.form['subject_topic']
+def add_student(course_id):
+    name = request.form['student_name']
+    roll_number = request.form['roll_number']
+    
+    new_student = Student(name=name, roll_number=roll_number, course_id=course_id)
+    db.session.add(new_student)
+    db.session.commit()
+    return redirect(url_for('view_course', course_id=course_id))
+
+@app.route('/student/<int:student_id>/add_marks', methods=['POST'])
+@login_required
+def add_marks(student_id):
+    student = Student.query.get_or_404(student_id)
+    if student.course.user_id != current_user.id:
+        return "Unauthorized", 403
+        
+    topic_name = request.form['topic_name']
     marks_obtained = int(request.form['marks_obtained'])
     total_marks = int(request.form.get('total_marks', 100))
-    test_date = request.form['test_date']
+    # Parse date from YYYY-MM-DD
+    test_date_str = request.form['test_date']
+    test_date = datetime.datetime.strptime(test_date_str, "%Y-%m-%d").date()
 
-    conn = get_db_connection()
-    execute_query(conn, 
-        'INSERT INTO students (student_name, subject_topic, marks_obtained, total_marks, test_date) VALUES (?, ?, ?, ?, ?)',
-        (student_name, subject_topic, marks_obtained, total_marks, test_date),
-        commit=True
-    )
-    conn.close()
-    return redirect(url_for('dashboard'))
-
-@app.route('/generate_report/<student_name>')
-@login_required
-def generate_report(student_name):
-    conn = get_db_connection()
-    records = execute_query(conn, '''
-        SELECT test_date, marks_obtained, total_marks
-        FROM students 
-        WHERE student_name = ?
-        ORDER BY test_date ASC
-    ''', (student_name,), fetchall=True)
-    conn.close()
-
-    if not records:
-        return "No records found", 404
-
-    dates = []
-    percentages = []
-    for r in records:
-        dates.append(r['test_date'])
-        perc = (r['marks_obtained'] / r['total_marks']) * 100
-        percentages.append(perc)
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(dates, percentages, marker='o', linestyle='-', color='#6366f1', linewidth=2, markersize=8)
-    plt.title(f'Performance Trend: {student_name}', fontsize=16)
-    plt.xlabel('Test Date', fontsize=12)
-    plt.ylabel('Percentage (%)', fontsize=12)
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.ylim(0, 105)
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-
-    report_dir = os.path.join(app.static_folder, 'reports')
-    os.makedirs(report_dir, exist_ok=True)
-    report_filename = f'{student_name.replace(" ", "_")}_report.png'
-    report_path = os.path.join(report_dir, report_filename)
+    record = TestRecord(student_id=student.id, topic_name=topic_name, marks_obtained=marks_obtained, 
+                        total_marks=total_marks, test_date=test_date)
+    db.session.add(record)
+    db.session.commit()
     
-    plt.savefig(report_path)
-    plt.close()
+    return redirect(url_for('view_course', course_id=student.course_id))
 
-    return redirect(url_for('static', filename=f'reports/{report_filename}'))
-
-@app.route('/add_topic', methods=['POST'])
+@app.route('/course/<int:course_id>/add_topic', methods=['POST'])
 @login_required
-def add_topic():
-    topic_name = request.form['topic_name']
-    conn = get_db_connection()
-    val = False if USE_POSTGRES else 0
-    execute_query(conn, 'INSERT INTO syllabus (topic_name, status) VALUES (?, ?)', (topic_name, val), commit=True)
-    conn.close()
-    return redirect(url_for('dashboard'))
+def add_topic(course_id):
+    name = request.form['topic_name']
+    t = Topic(name=name, course_id=course_id, is_custom=True)
+    db.session.add(t)
+    db.session.commit()
+    return redirect(url_for('view_course', course_id=course_id))
 
-@app.route('/toggle_topic/<int:topic_id>', methods=['POST'])
+@app.route('/topic/<int:topic_id>/toggle', methods=['POST'])
 @login_required
 def toggle_topic(topic_id):
-    conn = get_db_connection()
-    topic = execute_query(conn, 'SELECT status FROM syllabus WHERE id = ?', (topic_id,), fetchone=True)
-    if topic is not None:
-        new_status = not bool(topic['status'])
-        if not USE_POSTGRES:
-            new_status = 1 if new_status else 0
-        execute_query(conn, 'UPDATE syllabus SET status = ? WHERE id = ?', (new_status, topic_id), commit=True)
-    conn.close()
-    return redirect(url_for('dashboard'))
+    topic = Topic.query.get_or_404(topic_id)
+    if topic.course.user_id != current_user.id: return "Unauthorized", 403
+    
+    topic.is_completed = not topic.is_completed
+    db.session.commit()
+    return redirect(url_for('view_course', course_id=topic.course_id))
 
-@app.route('/delete_topic/<int:topic_id>', methods=['POST'])
+@app.route('/topic/<int:topic_id>/delete', methods=['POST'])
 @login_required
 def delete_topic(topic_id):
-    conn = get_db_connection()
-    execute_query(conn, 'DELETE FROM syllabus WHERE id = ?', (topic_id,), commit=True)
-    conn.close()
-    return redirect(url_for('dashboard'))
+    topic = Topic.query.get_or_404(topic_id)
+    if topic.course.user_id != current_user.id: return "Unauthorized", 403
+    course_id = topic.course_id
+    db.session.delete(topic)
+    db.session.commit()
+    return redirect(url_for('view_course', course_id=course_id))
+
+@app.route('/student/<int:student_id>/delete', methods=['POST'])
+@login_required
+def delete_student(student_id):
+    student = Student.query.get_or_404(student_id)
+    if student.course.user_id != current_user.id: return "Unauthorized", 403
+    course_id = student.course_id
+    db.session.delete(student)
+    db.session.commit()
+    return redirect(url_for('view_course', course_id=course_id))
 
 # --- AI Insight Route ---
-@app.route('/ai_insight/<student_name>')
+@app.route('/ai_insight/<int:student_id>')
 @login_required
-def ai_insight(student_name):
+def ai_insight(student_id):
     if not GEMINI_API_KEY:
         return jsonify({"error": "Gemini API key is not configured. Please add GEMINI_API_KEY to your environment variables."}), 500
         
-    conn = get_db_connection()
+    student = Student.query.get_or_404(student_id)
+    if student.course.user_id != current_user.id: return jsonify({"error": "Unauthorized"}), 403
+    
     # Fetch last 5 records
-    records = execute_query(conn, '''
-        SELECT subject_topic, marks_obtained, total_marks, test_date
-        FROM students 
-        WHERE student_name = ?
-        ORDER BY test_date DESC
-        LIMIT 5
-    ''', (student_name,), fetchall=True)
-    conn.close()
+    records = TestRecord.query.filter_by(student_id=student.id).order_by(TestRecord.test_date.desc()).limit(5).all()
 
     if not records:
         return jsonify({"error": "No records found for this student to analyze."}), 404
 
-    # Format data for prompt
     marks_summary = []
-    for r in reversed(records): # Reverse to be chronological for AI
-        marks_summary.append(f"- {r['test_date']} ({r['subject_topic']}): {r['marks_obtained']}/{r['total_marks']}")
+    for r in reversed(records):
+        marks_summary.append(f"- {r.test_date} ({r.topic_name}): {r.marks_obtained}/{r.total_marks}")
     
     marks_text = "\n".join(marks_summary)
     
-    prompt = f"Analyze these test marks for a math teacher. Identify the overall performance trend and give ONE concise, actionable teaching suggestion.\n\nStudent: {student_name}\nRecent Marks:\n{marks_text}"
+    prompt = f"Analyze these test marks for a math teacher. Identify the overall performance trend and give ONE concise, actionable teaching suggestion.\n\nStudent: {student.name}\nRecent Marks:\n{marks_text}"
     
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
@@ -319,7 +303,7 @@ def ai_insight(student_name):
         insight_text = response.text.strip()
         return jsonify({"insight": insight_text})
     except Exception as e:
-        return jsonify({"error": f"Failed to generate insight from Gemini API: {str(e)}"}), 500
+        return jsonify({"error": f"Failed to generate insight: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

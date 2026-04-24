@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Class {{ course.grade_level }} {{ course.subject }} - TutorTrack AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content glass-card">
+                <div class="header-title">
+                    <p class="breadcrumbs"><a href="{{ url_for('dashboard') }}">← Back to Dashboard</a></p>
+                    <h1>Class {{ course.grade_level }} <span>{{ course.subject }}</span></h1>
+                </div>
+                <div class="header-actions analytics-pill">
+                    Class Average: <strong>{{ "%.1f"|format(class_average) }}%</strong>
+                </div>
+            </div>
+        </header>
+
+        <main class="course-content">
+            
+            <!-- Left Column: Syllabus -->
+            <div class="left-col">
+                <section class="card glass-card">
+                    <h2>Syllabus Manager</h2>
+                    <form action="{{ url_for('add_topic', course_id=course.id) }}" method="POST" class="add-topic-form">
+                        <div class="topic-input-group">
+                            <input type="text" name="topic_name" placeholder="Add custom topic..." required>
+                            <button type="submit" class="btn btn-primary">Add</button>
+                        </div>
+                    </form>
+
+                    <div class="syllabus-columns">
+                        <div class="syllabus-col">
+                            <h3>Pending ({{ pending_topics|length }})</h3>
+                            <ul class="topic-list">
+                                {% for topic in pending_topics %}
+                                    <li class="topic-item">
+                                        <span class="topic-name">{{ topic.name }} {% if topic.is_custom %}<small>(Custom)</small>{% endif %}</span>
+                                        <div class="topic-actions">
+                                            <form action="{{ url_for('toggle_topic', topic_id=topic.id) }}" method="POST">
+                                                <button type="submit" class="btn-action check" title="Mark Completed">✓</button>
+                                            </form>
+                                            <form action="{{ url_for('delete_topic', topic_id=topic.id) }}" method="POST">
+                                                <button type="submit" class="btn-action delete" title="Remove Topic">✕</button>
+                                            </form>
+                                        </div>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="syllabus-col">
+                            <h3>Completed ({{ covered_topics|length }})</h3>
+                            <ul class="topic-list">
+                                {% for topic in covered_topics %}
+                                    <li class="topic-item covered">
+                                        <span class="topic-name">{{ topic.name }}</span>
+                                        <div class="topic-actions">
+                                            <form action="{{ url_for('toggle_topic', topic_id=topic.id) }}" method="POST">
+                                                <button type="submit" class="btn-action undo" title="Mark Pending">↺</button>
+                                            </form>
+                                        </div>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Analytics Section -->
+                <section class="card glass-card mt-2">
+                    <h2>Performance Analytics</h2>
+                    <div class="analytics-grid">
+                        <div class="analytics-box needs-support">
+                            <h3>Needs Support</h3>
+                            {% if needs_support %}
+                                <ul>
+                                    {% for s in needs_support %}
+                                        <li>{{ s.name }} ({{ "%.1f"|format(s.average_percentage) }}%)</li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="muted">No students currently flagged.</p>
+                            {% endif %}
+                        </div>
+                        <div class="analytics-box top-performers">
+                            <h3>Top Performers</h3>
+                            {% if top_performers %}
+                                <ul>
+                                    {% for s in top_performers %}
+                                        <li>{{ s.name }} ({{ "%.1f"|format(s.average_percentage) }}%)</li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="muted">Need more data.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Column: Students -->
+            <div class="right-col">
+                <section class="card glass-card">
+                    <h2>Students & Marks</h2>
+                    <form action="{{ url_for('add_student', course_id=course.id) }}" method="POST" class="add-student-form">
+                        <div class="form-row">
+                            <div class="half">
+                                <input type="text" name="student_name" placeholder="Student Name" required>
+                            </div>
+                            <div class="half">
+                                <input type="text" name="roll_number" placeholder="Roll No. (Optional)">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm">Add Student</button>
+                        </div>
+                    </form>
+
+                    <hr class="divider">
+
+                    {% if students %}
+                        <div class="students-accordion">
+                            {% for student in students %}
+                                <div class="student-block">
+                                    <div class="student-header">
+                                        <h4>{{ student.name }} <span class="roll-badge">{{ student.roll_number or 'N/A' }}</span></h4>
+                                        <div class="student-header-actions">
+                                            <span class="avg-badge {% if student in needs_support %}badge-red{% elif student in top_performers %}badge-green{% else %}badge-blue{% endif %}">
+                                                Avg: {{ "%.1f"|format(student.average_percentage) }}%
+                                            </span>
+                                            <button onclick="getAIInsight('{{ student.id }}')" class="btn btn-primary btn-sm ai-btn">✨ AI Insight</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="test-records-list">
+                                        {% if student.test_records %}
+                                            <table class="minimal-table">
+                                                <tr>
+                                                    <th>Date</th>
+                                                    <th>Topic</th>
+                                                    <th>Score</th>
+                                                </tr>
+                                                {% for record in student.test_records|reverse %}
+                                                <tr>
+                                                    <td>{{ record.test_date.strftime('%Y-%m-%d') }}</td>
+                                                    <td>{{ record.topic_name or 'N/A' }}</td>
+                                                    <td><strong>{{ record.marks_obtained }}</strong>/{{ record.total_marks }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </table>
+                                        {% else %}
+                                            <p class="muted small">No test records yet.</p>
+                                        {% endif %}
+                                    </div>
+
+                                    <form action="{{ url_for('add_marks', student_id=student.id) }}" method="POST" class="add-marks-form">
+                                        <input type="text" name="topic_name" placeholder="Test Topic" required class="sm-input">
+                                        <input type="number" name="marks_obtained" placeholder="Marks" required class="sm-input">
+                                        <input type="number" name="total_marks" value="100" placeholder="Total" class="sm-input">
+                                        <input type="date" name="test_date" required class="sm-input">
+                                        <button type="submit" class="btn btn-secondary btn-sm">Add</button>
+                                    </form>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <p>No students in this class. Add one above!</p>
+                        </div>
+                    {% endif %}
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- AI Insight Modal -->
+    <div id="aiModal" class="modal">
+        <div class="modal-content glass-card">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <h2 class="modal-title">✨ AI Teaching Insight</h2>
+            <div id="aiLoading" style="display:none;" class="ai-loading">
+                <p>Analyzing recent scores with Gemini AI...</p>
+                <div class="spinner"></div>
+            </div>
+            <div id="aiResult"></div>
+        </div>
+    </div>
+
+    <script>
+        function getAIInsight(studentId) {
+            const modal = document.getElementById('aiModal');
+            const loading = document.getElementById('aiLoading');
+            const result = document.getElementById('aiResult');
+            
+            modal.style.display = 'flex';
+            loading.style.display = 'flex';
+            result.innerHTML = '';
+            
+            fetch(`/ai_insight/${studentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    loading.style.display = 'none';
+                    if (data.error) {
+                        result.innerHTML = `<p class="error-text">${data.error}</p>`;
+                    } else {
+                        const formattedText = data.insight.replace(/\n/g, '<br>');
+                        result.innerHTML = `<p class="insight-text">${formattedText}</p>`;
+                    }
+                })
+                .catch(err => {
+                    loading.style.display = 'none';
+                    result.innerHTML = `<p class="error-text">Network error occurred while fetching insights.</p>`;
+                });
+        }
+        
+        function closeModal() {
+            document.getElementById('aiModal').style.display = 'none';
+        }
+        
+        window.onclick = function(event) {
+            const modal = document.getElementById('aiModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>

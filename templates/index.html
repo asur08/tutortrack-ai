@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TutorTrack AI Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>TutorTrack AI - Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <div class="header-content">
+            <div class="header-content glass-card">
                 <div class="header-title">
                     <h1>TutorTrack <span>AI</span></h1>
                     <p>Welcome, {{ current_user.username }}! Today is {{ current_date }}.</p>
@@ -21,188 +21,66 @@
             </div>
         </header>
 
-        <main class="dashboard-content">
-            <!-- Left Column: Forms -->
-            <div class="column">
-                <section class="add-marks-section">
-                    <h2>Add New Marks</h2>
-                    <div class="card">
-                        <form action="{{ url_for('add_marks') }}" method="POST" class="marks-form">
-                            <div class="form-group">
-                                <label for="student_name">Student Name</label>
-                                <input type="text" id="student_name" name="student_name" required placeholder="e.g. John Doe">
-                            </div>
-                            <div class="form-group">
-                                <label for="subject_topic">Subject / Topic</label>
-                                <input type="text" id="subject_topic" name="subject_topic" required placeholder="e.g. Algebra">
-                            </div>
-                            <div class="form-group form-row">
-                                <div class="half">
-                                    <label for="marks_obtained">Marks Obtained</label>
-                                    <input type="number" id="marks_obtained" name="marks_obtained" required placeholder="e.g. 85">
-                                </div>
-                                <div class="half">
-                                    <label for="total_marks">Total Marks</label>
-                                    <input type="number" id="total_marks" name="total_marks" value="100" required>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="test_date">Test Date</label>
-                                <input type="date" id="test_date" name="test_date" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary">Save Record</button>
-                        </form>
-                    </div>
-                </section>
-            </div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
 
-            <!-- Right Column: Records -->
-            <div class="column">
-                <section class="records-section">
-                    <h2>Current Records</h2>
-                    <div class="card table-card">
-                        <table class="records-table">
-                            <thead>
-                                <tr>
-                                    <th>Student Name</th>
-                                    <th>Subject/Topic</th>
-                                    <th>Test Date</th>
-                                    <th>Marks</th>
-                                    <th>Percentage</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for record in records %}
-                                <tr>
-                                    <td>{{ record.student_name }}</td>
-                                    <td>{{ record.subject_topic }}</td>
-                                    <td>{{ record.test_date }}</td>
-                                    <td><span class="marks-pill">{{ record.marks_obtained }} / {{ record.total_marks }}</span></td>
-                                    <td>{{ "%.1f"|format((record.marks_obtained / record.total_marks) * 100) }}%</td>
-                                    <td>
-                                        <a href="{{ url_for('generate_report', student_name=record.student_name) }}" class="btn btn-secondary btn-sm" target="_blank">Generate Report</a>
-                                        <button onclick="getAIInsight('{{ record.student_name }}')" class="btn btn-primary btn-sm ai-btn">✨ AI Insight</button>
-                                    </td>
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="6" class="text-center empty-state">No records found. Add some marks to get started!</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </div>
-        </main>
-
-        <!-- New Section: Syllabus Manager -->
-        <section class="syllabus-section">
-            <h2>Syllabus Manager</h2>
-            <div class="card">
-                <!-- Add Topic Form -->
-                <form action="{{ url_for('add_topic') }}" method="POST" class="add-topic-form">
-                    <div class="topic-input-group">
-                        <input type="text" name="topic_name" required placeholder="Enter a new syllabus topic (e.g., Intro to Limits)">
-                        <button type="submit" class="btn btn-primary">Add Topic</button>
+        <main class="dashboard-content single-column">
+            <section class="card glass-card">
+                <h2>Create New Class</h2>
+                <form action="{{ url_for('create_course') }}" method="POST" class="add-course-form">
+                    <div class="form-row">
+                        <div class="half">
+                            <label for="grade_level">Grade Level (Class)</label>
+                            <select name="grade_level" id="grade_level" class="apple-select" required>
+                                <option value="" disabled selected>Select Class</option>
+                                <option value="8">Class 8</option>
+                                <option value="9">Class 9</option>
+                                <option value="10">Class 10</option>
+                                <option value="11">Class 11</option>
+                                <option value="12">Class 12</option>
+                            </select>
+                        </div>
+                        <div class="half">
+                            <label for="subject">Subject</label>
+                            <select name="subject" id="subject" class="apple-select" required>
+                                <option value="Math">Mathematics</option>
+                                <!-- Science placeholder for future -->
+                            </select>
+                        </div>
+                        <div class="half form-btn-container">
+                            <label>&nbsp;</label>
+                            <button type="submit" class="btn btn-primary">Create Class</button>
+                        </div>
                     </div>
                 </form>
+            </section>
 
-                <div class="syllabus-columns">
-                    <!-- Pending Topics -->
-                    <div class="syllabus-col">
-                        <h3>Pending Topics</h3>
-                        <ul class="topic-list">
-                            {% for topic in pending_topics %}
-                            <li class="topic-item pending">
-                                <span class="topic-name">{{ topic.topic_name }}</span>
-                                <form action="{{ url_for('toggle_topic', topic_id=topic.id) }}" method="POST" class="topic-actions">
-                                    <button type="submit" class="btn-action check" title="Mark as Covered">✓</button>
-                                </form>
-                            </li>
-                            {% else %}
-                            <li class="empty-state">No pending topics.</li>
-                            {% endfor %}
-                        </ul>
+            <section class="courses-grid">
+                {% if courses %}
+                    {% for course in courses %}
+                        <div class="course-card glass-card">
+                            <h3>Class {{ course.grade_level }} {{ course.subject }}</h3>
+                            <div class="course-stats">
+                                <p><strong>Students:</strong> {{ course.students|length }}</p>
+                                <p><strong>Topics:</strong> {{ course.topics|length }}</p>
+                            </div>
+                            <a href="{{ url_for('view_course', course_id=course.id) }}" class="btn btn-primary btn-sm block-btn">View Class Dashboard</a>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state glass-card">
+                        <p>No classes found. Create one above to get started!</p>
                     </div>
-
-                    <!-- Covered Topics -->
-                    <div class="syllabus-col">
-                        <h3>Covered Topics</h3>
-                        <ul class="topic-list">
-                            {% for topic in covered_topics %}
-                            <li class="topic-item covered">
-                                <span class="topic-name">{{ topic.topic_name }}</span>
-                                <div class="topic-actions">
-                                    <form action="{{ url_for('toggle_topic', topic_id=topic.id) }}" method="POST">
-                                        <button type="submit" class="btn-action undo" title="Move back to pending">↺</button>
-                                    </form>
-                                    <form action="{{ url_for('delete_topic', topic_id=topic.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this topic?');">
-                                        <button type="submit" class="btn-action delete" title="Delete permanently">✕</button>
-                                    </form>
-                                </div>
-                            </li>
-                            {% else %}
-                            <li class="empty-state">No covered topics yet.</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </section>
+                {% endif %}
+            </section>
+        </main>
     </div>
-
-    <!-- AI Insight Modal -->
-    <div id="aiModal" class="modal">
-        <div class="modal-content card">
-            <span class="close-modal" onclick="closeModal()">&times;</span>
-            <h2 class="modal-title">✨ AI Teaching Insight</h2>
-            <div id="aiLoading" style="display:none;" class="ai-loading">
-                <p>Analyzing recent scores with Gemini AI...</p>
-                <div class="spinner"></div>
-            </div>
-            <div id="aiResult"></div>
-        </div>
-    </div>
-
-    <script>
-        function getAIInsight(studentName) {
-            const modal = document.getElementById('aiModal');
-            const loading = document.getElementById('aiLoading');
-            const result = document.getElementById('aiResult');
-            
-            modal.style.display = 'flex';
-            loading.style.display = 'flex';
-            result.innerHTML = '';
-            
-            fetch(`/ai_insight/${encodeURIComponent(studentName)}`)
-                .then(response => response.json())
-                .then(data => {
-                    loading.style.display = 'none';
-                    if (data.error) {
-                        result.innerHTML = `<p class="error-text">${data.error}</p>`;
-                    } else {
-                        const formattedText = data.insight.replace(/\n/g, '<br>');
-                        result.innerHTML = `<p class="insight-text">${formattedText}</p>`;
-                    }
-                })
-                .catch(err => {
-                    loading.style.display = 'none';
-                    result.innerHTML = `<p class="error-text">Network error occurred while fetching insights.</p>`;
-                });
-        }
-        
-        function closeModal() {
-            document.getElementById('aiModal').style.display = 'none';
-        }
-        
-        window.onclick = function(event) {
-            const modal = document.getElementById('aiModal');
-            if (event.target == modal) {
-                closeModal();
-            }
-        }
-    </script>
 </body>
 </html>
