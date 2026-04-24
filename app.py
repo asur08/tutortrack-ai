@@ -48,7 +48,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default='tutor')
+    role = db.Column(db.String(20), default='student')
     is_verified = db.Column(db.Boolean, default=False)
     otp_code = db.Column(db.String(6), nullable=True)
     otp_expiry = db.Column(db.DateTime, nullable=True)
@@ -66,15 +66,28 @@ class CourseClass(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     grade_level = db.Column(db.Integer, nullable=False)
     subject = db.Column(db.String(100), nullable=False)
+    class_code = db.Column(db.String(6), unique=True, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     students = db.relationship('Student', backref='course', lazy=True, cascade="all, delete-orphan")
     topics = db.relationship('Topic', backref='course', lazy=True, cascade="all, delete-orphan")
+
+class Enrollment(db.Model):
+    __tablename__ = 'enrollments'
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    class_id = db.Column(db.Integer, db.ForeignKey('course_classes.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending')
+    
+    student_user = db.relationship('User', backref='enrollments', lazy=True)
+    course = db.relationship('CourseClass', backref='course_enrollments', lazy=True)
 
 class Student(db.Model):
     __tablename__ = 'students'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False)
     roll_number = db.Column(db.String(50))
+    parent_phone = db.Column(db.String(20), nullable=True)
+    fee_status = db.Column(db.Boolean, default=False)
     course_id = db.Column(db.Integer, db.ForeignKey('course_classes.id'), nullable=False)
     test_records = db.relationship('TestRecord', backref='student', lazy=True, cascade="all, delete-orphan")
     
@@ -136,10 +149,14 @@ def signup():
             return redirect(url_for('signup'))
             
         hashed_password = generate_password_hash(password)
+        role = request.form.get('role', 'student')
+        if role not in ['teacher', 'student', 'admin']:
+            role = 'student'
+            
         otp = str(random.randint(100000, 999999))
         expiry = datetime.datetime.now() + datetime.timedelta(minutes=10)
         
-        new_user = User(username=username, password_hash=hashed_password, role='tutor', otp_code=otp, otp_expiry=expiry)
+        new_user = User(username=username, password_hash=hashed_password, role=role, otp_code=otp, otp_expiry=expiry)
         db.session.add(new_user)
         db.session.commit()
         
@@ -220,18 +237,38 @@ def logout():
 @app.route('/')
 @login_required
 def dashboard():
-    courses = CourseClass.query.filter_by(user_id=current_user.id).all()
     current_date = datetime.datetime.now().strftime("%A, %B %d, %Y")
-    return render_template('index.html', courses=courses, current_date=current_date)
+    
+    if current_user.role == 'teacher':
+        courses = CourseClass.query.filter_by(user_id=current_user.id).all()
+        course_ids = [c.id for c in courses]
+        pending_requests = Enrollment.query.filter(Enrollment.class_id.in_(course_ids), Enrollment.status == 'pending').all() if course_ids else []
+        
+        all_students = []
+        for c in courses:
+            all_students.extend(c.students)
+            
+        return render_template('index.html', courses=courses, pending_requests=pending_requests, all_students=all_students, current_date=current_date)
+    else:
+        enrollments = Enrollment.query.filter_by(student_id=current_user.id).all()
+        return render_template('index.html', enrollments=enrollments, current_date=current_date)
 
 @app.route('/create_course', methods=['POST'])
 @login_required
 def create_course():
+    import string
+    
     grade_level = int(request.form['grade_level'])
     subject = request.form['subject']
     import_ncert = request.form.get('import_ncert') == 'on'
     
-    new_course = CourseClass(grade_level=grade_level, subject=subject, user_id=current_user.id)
+    # Generate unique 6-character code
+    while True:
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        if not CourseClass.query.filter_by(class_code=code).first():
+            break
+            
+    new_course = CourseClass(grade_level=grade_level, subject=subject, class_code=code, user_id=current_user.id)
     db.session.add(new_course)
     db.session.flush() # Get ID before commit
     
@@ -245,11 +282,74 @@ def create_course():
     db.session.commit()
     return redirect(url_for('dashboard'))
 
+@app.route('/join_class', methods=['POST'])
+@login_required
+def join_class():
+    if current_user.role != 'student':
+        return "Unauthorized", 403
+        
+    class_code = request.form.get('class_code')
+    course = CourseClass.query.filter_by(class_code=class_code).first()
+    
+    if not course:
+        flash('Invalid class code.', 'error')
+        return redirect(url_for('dashboard'))
+        
+    existing_enrollment = Enrollment.query.filter_by(student_id=current_user.id, class_id=course.id).first()
+    if existing_enrollment:
+        flash('You have already joined or requested to join this class.', 'error')
+        return redirect(url_for('dashboard'))
+        
+    new_enrollment = Enrollment(student_id=current_user.id, class_id=course.id, status='pending')
+    db.session.add(new_enrollment)
+    db.session.commit()
+    flash(f'Request to join {course.subject} Class {course.grade_level} sent! Waiting for teacher approval.', 'success')
+    return redirect(url_for('dashboard'))
+
+@app.route('/approve_request/<int:enrollment_id>', methods=['POST'])
+@login_required
+def approve_request(enrollment_id):
+    if current_user.role != 'teacher':
+        return "Unauthorized", 403
+        
+    enrollment = Enrollment.query.get_or_404(enrollment_id)
+    if enrollment.course.user_id != current_user.id:
+        return "Unauthorized", 403
+        
+    enrollment.status = 'approved'
+    db.session.commit()
+    flash(f'Approved student {enrollment.student_user.username}.', 'success')
+    return redirect(url_for('dashboard'))
+
+@app.route('/reject_request/<int:enrollment_id>', methods=['POST'])
+@login_required
+def reject_request(enrollment_id):
+    if current_user.role != 'teacher':
+        return "Unauthorized", 403
+        
+    enrollment = Enrollment.query.get_or_404(enrollment_id)
+    if enrollment.course.user_id != current_user.id:
+        return "Unauthorized", 403
+        
+    db.session.delete(enrollment)
+    db.session.commit()
+    flash('Rejected student request.', 'success')
+    return redirect(url_for('dashboard'))
+
 @app.route('/course/<int:course_id>')
 @login_required
 def view_course(course_id):
     course = CourseClass.query.get_or_404(course_id)
-    if course.user_id != current_user.id:
+    
+    # Check access permissions
+    if current_user.role == 'teacher':
+        if course.user_id != current_user.id:
+            return "Unauthorized", 403
+    elif current_user.role == 'student':
+        enrollment = Enrollment.query.filter_by(student_id=current_user.id, class_id=course.id, status='approved').first()
+        if not enrollment:
+            return "Unauthorized. You are not approved for this class.", 403
+    else:
         return "Unauthorized", 403
         
     students = course.students
@@ -282,10 +382,12 @@ def view_course(course_id):
 @app.route('/course/<int:course_id>/add_student', methods=['POST'])
 @login_required
 def add_student(course_id):
+    if current_user.role == 'student': return "Unauthorized", 403
     name = request.form['student_name']
-    roll_number = request.form['roll_number']
+    roll_number = request.form.get('roll_number', '')
+    parent_phone = request.form.get('parent_phone', '')
     
-    new_student = Student(name=name, roll_number=roll_number, course_id=course_id)
+    new_student = Student(name=name, roll_number=roll_number, parent_phone=parent_phone, course_id=course_id)
     db.session.add(new_student)
     db.session.commit()
     return redirect(url_for('view_course', course_id=course_id))
@@ -349,6 +451,18 @@ def delete_student(student_id):
     db.session.delete(student)
     db.session.commit()
     return redirect(url_for('view_course', course_id=course_id))
+
+@app.route('/toggle_fee/<int:student_id>', methods=['POST'])
+@login_required
+def toggle_fee(student_id):
+    if current_user.role != 'teacher': return "Unauthorized", 403
+    student = Student.query.get_or_404(student_id)
+    if student.course.user_id != current_user.id: return "Unauthorized", 403
+        
+    student.fee_status = not student.fee_status
+    db.session.commit()
+    flash(f"Fee status updated for {student.name}", 'success')
+    return redirect(url_for('dashboard'))
 
 # --- AI Insight Route ---
 @app.route('/ai_insight/<int:student_id>')

@@ -32,66 +32,174 @@
         {% endwith %}
 
         <main class="dashboard-content single-column">
-            <section class="card glass-card">
-                <h2>Create New Class</h2>
-                <form action="{{ url_for('create_course') }}" method="POST" class="add-course-form">
-                    <div class="form-row">
-                        <div class="half">
-                            <label for="grade_level">Grade Level (Class)</label>
-                            <select name="grade_level" id="grade_level" class="apple-select" required>
-                                <option value="" disabled selected>Select Class</option>
-                                <option value="8">Class 8</option>
-                                <option value="9">Class 9</option>
-                                <option value="10">Class 10</option>
-                                <option value="11">Class 11</option>
-                                <option value="12">Class 12</option>
-                            </select>
+            {% if current_user.role == 'teacher' %}
+                <section class="card glass-card">
+                    <h2>Create New Class</h2>
+                    <form action="{{ url_for('create_course') }}" method="POST" class="add-course-form">
+                        <div class="form-row">
+                            <div class="half">
+                                <label for="grade_level">Grade Level (Class)</label>
+                                <select name="grade_level" id="grade_level" class="apple-select" required>
+                                    <option value="" disabled selected>Select Class</option>
+                                    <option value="8">Class 8</option>
+                                    <option value="9">Class 9</option>
+                                    <option value="10">Class 10</option>
+                                    <option value="11">Class 11</option>
+                                    <option value="12">Class 12</option>
+                                </select>
+                            </div>
+                            <div class="half">
+                                <label for="subject">Subject</label>
+                                <select name="subject" id="subject" class="apple-select" required>
+                                    <option value="Math">Mathematics</option>
+                                    <option value="Science">Science</option>
+                                </select>
+                            </div>
+                            <div class="half form-btn-container">
+                                <label>&nbsp;</label>
+                                <button type="submit" class="btn btn-primary">Create Class</button>
+                            </div>
                         </div>
-                        <div class="half">
-                            <label for="subject">Subject</label>
-                            <select name="subject" id="subject" class="apple-select" required>
-                                <option value="Math">Mathematics</option>
-                                <option value="Science">Science</option>
-                            </select>
+                        <div class="form-row" style="margin-top: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="import_ncert" checked>
+                                Import NCERT Syllabus for this Subject
+                            </label>
                         </div>
-                        <div class="half form-btn-container">
-                            <label>&nbsp;</label>
-                            <button type="submit" class="btn btn-primary">Create Class</button>
-                        </div>
-                    </div>
-                    <div class="form-row" style="margin-top: 1rem;">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" name="import_ncert" checked>
-                            Import NCERT Syllabus for this Subject
-                        </label>
-                    </div>
-                </form>
-            </section>
+                    </form>
+                </section>
+                
+                {% if pending_requests %}
+                <section class="card glass-card" style="margin-top: 2rem;">
+                    <h2>Pending Join Requests</h2>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+                        <tr>
+                            <th style="text-align: left; padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.1);">Student Email</th>
+                            <th style="text-align: left; padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.1);">Class</th>
+                            <th style="text-align: right; padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.1);">Actions</th>
+                        </tr>
+                        {% for req in pending_requests %}
+                        <tr>
+                            <td style="padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05);">{{ req.student_user.username }}</td>
+                            <td style="padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05);">Class {{ req.course.grade_level }} {{ req.course.subject }}</td>
+                            <td style="text-align: right; padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05);">
+                                <form action="{{ url_for('approve_request', enrollment_id=req.id) }}" method="POST" style="display: inline;">
+                                    <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+                                </form>
+                                <form action="{{ url_for('reject_request', enrollment_id=req.id) }}" method="POST" style="display: inline;">
+                                    <button type="submit" class="btn btn-secondary btn-sm" style="background-color: #fee2e2; color: #dc2626;">Reject</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </section>
+                {% endif %}
 
-            <section class="courses-grid">
-                {% if courses %}
-                    {% for course in courses %}
-                        <div class="course-card glass-card">
-                            <h3>Class {{ course.grade_level }} {{ course.subject }}</h3>
-                            <div class="course-stats">
-                                <p><strong>Students:</strong> {{ course.students|length }}</p>
-                                {% set total_topics = course.topics|length %}
-                                {% set covered_topics = course.topics|selectattr("is_completed", "equalto", true)|list|length %}
-                                {% set progress = (covered_topics / total_topics * 100) if total_topics > 0 else 0 %}
-                                <p><strong>Syllabus Mastery:</strong> {{ covered_topics }}/{{ total_topics }} Topics</p>
-                                <div class="progress-container">
-                                    <div class="progress-fill" style="width: {{ progress }}%;"></div>
+                <section class="courses-grid" style="margin-top: 2rem;">
+                    {% if courses %}
+                        {% for course in courses %}
+                            <div class="course-card glass-card">
+                                <h3>Class {{ course.grade_level }} {{ course.subject }}</h3>
+                                <div class="course-stats">
+                                    <p><strong>Class Code:</strong> <span style="background: rgba(0,0,0,0.05); padding: 0.2rem 0.5rem; border-radius: 4px; font-family: monospace; font-weight: bold; letter-spacing: 1px;">{{ course.class_code }}</span></p>
+                                    <p><strong>Students:</strong> {{ course.students|length }}</p>
+                                    {% set total_topics = course.topics|length %}
+                                    {% set covered_topics = course.topics|selectattr("is_completed", "equalto", true)|list|length %}
+                                    {% set progress = (covered_topics / total_topics * 100) if total_topics > 0 else 0 %}
+                                    <p><strong>Syllabus Mastery:</strong> {{ covered_topics }}/{{ total_topics }} Topics</p>
+                                    <div class="progress-container">
+                                        <div class="progress-fill" style="width: {{ progress }}%;"></div>
+                                    </div>
+                                </div>
+                                <a href="{{ url_for('view_course', course_id=course.id) }}" class="btn btn-primary btn-sm block-btn">View Class Dashboard</a>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state glass-card">
+                            <p>No classes found. Create one above to get started!</p>
+                        </div>
+                    {% endif %}
+                </section>
+
+                <section class="card glass-card" style="margin-top: 2rem;">
+                    <h2>Financial Tracking</h2>
+                    {% if all_students %}
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+                        <tr>
+                            <th style="text-align: left; padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.1);">Student Name</th>
+                            <th style="text-align: left; padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.1);">Class</th>
+                            <th style="text-align: left; padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.1);">Status</th>
+                            <th style="text-align: right; padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.1);">Action</th>
+                        </tr>
+                        {% for student in all_students %}
+                        <tr>
+                            <td style="padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05);">{{ student.name }}</td>
+                            <td style="padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05);">Class {{ student.course.grade_level }} {{ student.course.subject }}</td>
+                            <td style="padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05);">
+                                {% if student.fee_status %}
+                                    <span style="color: #059669; font-weight: 500;">Paid</span>
+                                {% else %}
+                                    <span style="color: #dc2626; font-weight: 500;">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right; padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05);">
+                                <form action="{{ url_for('toggle_fee', student_id=student.id) }}" method="POST" style="display: inline;">
+                                    {% if student.fee_status %}
+                                        <button type="submit" class="btn btn-secondary btn-sm" style="background-color: #fee2e2; color: #dc2626;">Mark Pending</button>
+                                    {% else %}
+                                        <button type="submit" class="btn btn-primary btn-sm" style="background-color: #059669; color: white;">Mark Paid</button>
+                                    {% endif %}
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                    {% else %}
+                    <p class="muted" style="margin-top: 1rem;">No students found. Add students to your classes to track fees.</p>
+                    {% endif %}
+                </section>
+            {% else %}
+                <section class="card glass-card">
+                    <h2>Join a Class</h2>
+                    <form action="{{ url_for('join_class') }}" method="POST" class="add-course-form" style="display: flex; gap: 1rem; align-items: flex-end;">
+                        <div style="flex-grow: 1;">
+                            <label for="class_code" style="display: block; margin-bottom: 0.5rem;">Class Code</label>
+                            <input type="text" id="class_code" name="class_code" class="apple-select" style="width: 100%; padding: 0.75rem; border: 1px solid #ccc; border-radius: 8px;" placeholder="Enter 6-character code" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">Join</button>
+                    </form>
+                </section>
+                
+                <section class="courses-grid" style="margin-top: 2rem;">
+                    {% if enrollments %}
+                        {% for enrollment in enrollments %}
+                            <div class="course-card glass-card">
+                                <h3>Class {{ enrollment.course.grade_level }} {{ enrollment.course.subject }}</h3>
+                                <p style="margin-top: 0.5rem;"><strong>Teacher:</strong> {{ enrollment.course.tutor.username }}</p>
+                                <p style="margin-top: 0.5rem;"><strong>Status:</strong> 
+                                    {% if enrollment.status == 'pending' %}
+                                        <span style="color: #d97706; font-weight: 500;">Pending Approval</span>
+                                    {% else %}
+                                        <span style="color: #059669; font-weight: 500;">Approved</span>
+                                    {% endif %}
+                                </p>
+                                <div style="margin-top: 1.5rem;">
+                                    {% if enrollment.status == 'approved' %}
+                                        <a href="{{ url_for('view_course', course_id=enrollment.course.id) }}" class="btn btn-primary btn-sm block-btn">View Class Dashboard</a>
+                                    {% else %}
+                                        <button disabled class="btn btn-secondary btn-sm block-btn" style="opacity: 0.5;">Awaiting Approval</button>
+                                    {% endif %}
                                 </div>
                             </div>
-                            <a href="{{ url_for('view_course', course_id=course.id) }}" class="btn btn-primary btn-sm block-btn">View Class Dashboard</a>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state glass-card">
+                            <p>You haven't joined any classes yet.</p>
                         </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="empty-state glass-card">
-                        <p>No classes found. Create one above to get started!</p>
-                    </div>
-                {% endif %}
-            </section>
+                    {% endif %}
+                </section>
+            {% endif %}
         </main>
     </div>
 </body>

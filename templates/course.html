@@ -27,12 +27,14 @@
             <div class="left-col">
                 <section class="card glass-card">
                     <h2>Syllabus Manager</h2>
+                    {% if current_user.role == 'teacher' %}
                     <form action="{{ url_for('add_topic', course_id=course.id) }}" method="POST" class="add-topic-form">
                         <div class="topic-input-group">
                             <input type="text" name="topic_name" placeholder="Add custom topic..." required>
                             <button type="submit" class="btn btn-primary">Add</button>
                         </div>
                     </form>
+                    {% endif %}
 
                     <div class="syllabus-columns">
                         <div class="syllabus-col">
@@ -41,6 +43,7 @@
                                 {% for topic in pending_topics %}
                                     <li class="topic-item">
                                         <span class="topic-name">{{ topic.name }} {% if topic.is_custom %}<small>(Custom)</small>{% endif %}</span>
+                                        {% if current_user.role == 'teacher' %}
                                         <div class="topic-actions">
                                             <form action="{{ url_for('toggle_topic', topic_id=topic.id) }}" method="POST">
                                                 <button type="submit" class="btn-action check" title="Mark Completed">✓</button>
@@ -49,6 +52,7 @@
                                                 <button type="submit" class="btn-action delete" title="Remove Topic">✕</button>
                                             </form>
                                         </div>
+                                        {% endif %}
                                     </li>
                                 {% endfor %}
                             </ul>
@@ -59,11 +63,13 @@
                                 {% for topic in covered_topics %}
                                     <li class="topic-item covered">
                                         <span class="topic-name">{{ topic.name }}</span>
+                                        {% if current_user.role == 'teacher' %}
                                         <div class="topic-actions">
                                             <form action="{{ url_for('toggle_topic', topic_id=topic.id) }}" method="POST">
                                                 <button type="submit" class="btn-action undo" title="Mark Pending">↺</button>
                                             </form>
                                         </div>
+                                        {% endif %}
                                     </li>
                                 {% endfor %}
                             </ul>
@@ -107,19 +113,26 @@
             <div class="right-col">
                 <section class="card glass-card">
                     <h2>Students & Marks</h2>
+                    {% if current_user.role == 'teacher' %}
                     <form action="{{ url_for('add_student', course_id=course.id) }}" method="POST" class="add-student-form">
                         <div class="form-row">
-                            <div class="half">
-                                <input type="text" name="student_name" placeholder="Student Name" required>
+                            <div style="flex: 1;">
+                                <input type="text" name="student_name" placeholder="Student Name" required style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
                             </div>
-                            <div class="half">
-                                <input type="text" name="roll_number" placeholder="Roll No. (Optional)">
+                            <div style="flex: 1;">
+                                <input type="text" name="roll_number" placeholder="Roll No." style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
                             </div>
-                            <button type="submit" class="btn btn-primary btn-sm">Add Student</button>
+                        </div>
+                        <div class="form-row" style="margin-top: 0.5rem;">
+                            <div style="flex: 2;">
+                                <input type="text" name="parent_phone" placeholder="Parent WhatsApp (e.g. 1234567890)" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm" style="flex: 1;">Add Student</button>
                         </div>
                     </form>
 
                     <hr class="divider">
+                    {% endif %}
 
                     {% if students %}
                         <div class="students-accordion">
@@ -131,7 +144,12 @@
                                             <span class="avg-badge {% if student in needs_support %}badge-red{% elif student in top_performers %}badge-green{% else %}badge-blue{% endif %}">
                                                 Avg: {{ "%.1f"|format(student.average_percentage) }}%
                                             </span>
+                                            {% if current_user.role == 'teacher' %}
                                             <button onclick="getAIInsight('{{ student.id }}')" class="btn btn-primary btn-sm ai-btn">✨ AI Insight</button>
+                                            {% if student.parent_phone %}
+                                            <a href="https://wa.me/{{ student.parent_phone }}?text={{ ('Hello! Here is the latest progress update for ' ~ student.name ~ ' from TutorTrack. Avg: ' ~ '%.1f'|format(student.average_percentage) ~ '%. View Dashboard: ' ~ request.host_url ~ 'course/' ~ course.id)|urlencode }}" target="_blank" class="btn btn-sm" style="background-color: #25D366; color: white; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.875rem;">WhatsApp</a>
+                                            {% endif %}
+                                            {% endif %}
                                         </div>
                                     </div>
                                     
@@ -156,6 +174,7 @@
                                         {% endif %}
                                     </div>
 
+                                    {% if current_user.role == 'teacher' %}
                                     <form action="{{ url_for('add_marks', student_id=student.id) }}" method="POST" class="add-marks-form">
                                         <input type="text" name="topic_name" placeholder="Test Topic" required class="sm-input">
                                         <input type="number" name="marks_obtained" placeholder="Marks" required class="sm-input">
@@ -163,6 +182,7 @@
                                         <input type="date" name="test_date" required class="sm-input">
                                         <button type="submit" class="btn btn-secondary btn-sm">Add</button>
                                     </form>
+                                    {% endif %}
                                 </div>
                             {% endfor %}
                         </div>
