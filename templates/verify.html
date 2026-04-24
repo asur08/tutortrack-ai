@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - TutorTrack AI</title>
+    <title>Verify Account - TutorTrack AI</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
@@ -26,8 +26,8 @@
         <div class="auth-section">
             <div class="auth-container glass-card">
                 <div class="auth-header">
-                    <h2>Welcome Back</h2>
-                    <p>Please login to continue to your dashboard.</p>
+                    <h2>Verify Your Account</h2>
+                    <p>Enter the 6-digit code sent to your email.</p>
                 </div>
 
                 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -40,20 +40,16 @@
                     {% endif %}
                 {% endwith %}
 
-                <form action="{{ url_for('login') }}" method="POST" class="auth-form">
+                <form action="{{ url_for('verify', user_id=user_id) }}" method="POST" class="auth-form">
                     <div class="form-group">
-                        <label for="username">Email Address</label>
-                        <input type="text" id="username" name="username" required>
+                        <label for="otp">6-Digit Code</label>
+                        <input type="text" id="otp" name="otp" pattern="\d{6}" title="Please enter exactly 6 digits" required>
                     </div>
-                    <div class="form-group">
-                        <label for="password">Password</label>
-                        <input type="password" id="password" name="password" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary block-btn" style="margin-top: 1rem;">Login</button>
+                    <button type="submit" class="btn btn-primary block-btn" style="margin-top: 1rem;">Verify Account</button>
                 </form>
 
                 <div class="auth-footer">
-                    <p>Don't have an account? <a href="{{ url_for('signup') }}">Sign Up</a></p>
+                    <p>Didn't receive a code? <a href="{{ url_for('login') }}">Back to Login</a></p>
                 </div>
             </div>
         </div>

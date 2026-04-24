@@ -5,9 +5,10 @@ from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_sqlalchemy import SQLAlchemy
+from flask_mail import Mail, Message
 import google.generativeai as genai
-from ncert_data import NCERT_MATH_SYLLABUS
-
+from ncert_data import NCERT_MATH_SYLLABUS, NCERT_SCIENCE_SYLLABUS
+import random
 load_dotenv()
 
 # Configure Gemini
@@ -25,6 +26,15 @@ if DB_URL and DB_URL.startswith('postgres://'):
 app.config['SQLALCHEMY_DATABASE_URI'] = DB_URL or 'sqlite:///tutortrack.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Mail Configuration
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', '1', 'yes']
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME', 'noreply@tutortrack.ai')
+
+mail = Mail(app)
 db = SQLAlchemy(app)
 
 # Login Manager
@@ -39,7 +49,17 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), default='tutor')
+    is_verified = db.Column(db.Boolean, default=False)
+    otp_code = db.Column(db.String(6), nullable=True)
+    otp_expiry = db.Column(db.DateTime, nullable=True)
     courses = db.relationship('CourseClass', backref='tutor', lazy=True, cascade="all, delete-orphan")
+
+class MasterSyllabus(db.Model):
+    __tablename__ = 'master_syllabus'
+    id = db.Column(db.Integer, primary_key=True)
+    grade_level = db.Column(db.Integer, nullable=False)
+    subject = db.Column(db.String(100), nullable=False)
+    topic_name = db.Column(db.String(200), nullable=False)
 
 class CourseClass(db.Model):
     __tablename__ = 'course_classes'
@@ -89,6 +109,16 @@ def load_user(user_id):
 # Initialize DB tables
 with app.app_context():
     db.create_all()
+    
+    # Pre-load MasterSyllabus if empty
+    if MasterSyllabus.query.count() == 0:
+        for grade, topics in NCERT_MATH_SYLLABUS.items():
+            for t in topics:
+                db.session.add(MasterSyllabus(grade_level=grade, subject='Math', topic_name=t))
+        for grade, topics in NCERT_SCIENCE_SYLLABUS.items():
+            for t in topics:
+                db.session.add(MasterSyllabus(grade_level=grade, subject='Science', topic_name=t))
+        db.session.commit()
 
 
 # --- Auth Routes ---
@@ -102,18 +132,49 @@ def signup():
         password = request.form.get('password')
         
         if User.query.filter_by(username=username).first():
-            flash('Username already exists.', 'error')
+            flash('Username/Email already exists.', 'error')
             return redirect(url_for('signup'))
             
         hashed_password = generate_password_hash(password)
-        new_user = User(username=username, password_hash=hashed_password, role='tutor')
+        otp = str(random.randint(100000, 999999))
+        expiry = datetime.datetime.now() + datetime.timedelta(minutes=10)
+        
+        new_user = User(username=username, password_hash=hashed_password, role='tutor', otp_code=otp, otp_expiry=expiry)
         db.session.add(new_user)
         db.session.commit()
         
-        flash('Account created successfully! Please log in.', 'success')
-        return redirect(url_for('login'))
+        try:
+            msg = Message("Your TutorTrack AI Verification Code", recipients=[username])
+            msg.body = f"Your verification code is: {otp}. It expires in 10 minutes."
+            mail.send(msg)
+            flash('Verification code sent to your email.', 'success')
+        except Exception as e:
+            print(f"FAILED TO SEND EMAIL. OTP IS: {otp}")
+            flash('Failed to send email. Check console for OTP in development.', 'error')
+            
+        return redirect(url_for('verify', user_id=new_user.id))
         
     return render_template('signup.html')
+
+@app.route('/verify/<int:user_id>', methods=['GET', 'POST'])
+def verify(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.is_verified:
+        return redirect(url_for('login'))
+        
+    if request.method == 'POST':
+        otp_input = request.form.get('otp')
+        if user.otp_code == otp_input and user.otp_expiry and datetime.datetime.now() <= user.otp_expiry:
+            user.is_verified = True
+            user.otp_code = None
+            user.otp_expiry = None
+            db.session.commit()
+            flash('Account verified successfully! You can now log in.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('Invalid or expired OTP. Please try again.', 'error')
+            
+    return render_template('verify.html', user_id=user_id)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -127,6 +188,20 @@ def login():
         user = User.query.filter_by(username=username).first()
         
         if user and check_password_hash(user.password_hash, password):
+            if not user.is_verified:
+                otp = str(random.randint(100000, 999999))
+                user.otp_code = otp
+                user.otp_expiry = datetime.datetime.now() + datetime.timedelta(minutes=10)
+                db.session.commit()
+                try:
+                    msg = Message("Your TutorTrack AI Verification Code", recipients=[username])
+                    msg.body = f"Your new verification code is: {otp}. It expires in 10 minutes."
+                    mail.send(msg)
+                except Exception as e:
+                    print(f"FAILED TO SEND EMAIL. OTP IS: {otp}")
+                flash('Please verify your account first. A new code has been sent.', 'error')
+                return redirect(url_for('verify', user_id=user.id))
+                
             login_user(user)
             return redirect(url_for('dashboard'))
         else:
@@ -154,16 +229,18 @@ def dashboard():
 def create_course():
     grade_level = int(request.form['grade_level'])
     subject = request.form['subject']
+    import_ncert = request.form.get('import_ncert') == 'on'
     
     new_course = CourseClass(grade_level=grade_level, subject=subject, user_id=current_user.id)
     db.session.add(new_course)
     db.session.flush() # Get ID before commit
     
-    # Auto-populate NCERT syllabus if applicable
-    if subject.lower() == 'math' and grade_level in NCERT_MATH_SYLLABUS:
-        for topic_name in NCERT_MATH_SYLLABUS[grade_level]:
-            t = Topic(name=topic_name, course_id=new_course.id, is_custom=False)
-            db.session.add(t)
+    # Auto-populate NCERT syllabus if requested
+    if import_ncert:
+        topics = MasterSyllabus.query.filter_by(grade_level=grade_level, subject=subject).all()
+        for t in topics:
+            new_topic = Topic(name=t.topic_name, course_id=new_course.id, is_custom=False)
+            db.session.add(new_topic)
             
     db.session.commit()
     return redirect(url_for('dashboard'))

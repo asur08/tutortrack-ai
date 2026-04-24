@@ -51,13 +51,19 @@
                             <label for="subject">Subject</label>
                             <select name="subject" id="subject" class="apple-select" required>
                                 <option value="Math">Mathematics</option>
-                                <!-- Science placeholder for future -->
+                                <option value="Science">Science</option>
                             </select>
                         </div>
                         <div class="half form-btn-container">
                             <label>&nbsp;</label>
                             <button type="submit" class="btn btn-primary">Create Class</button>
                         </div>
+                    </div>
+                    <div class="form-row" style="margin-top: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" name="import_ncert" checked>
+                            Import NCERT Syllabus for this Subject
+                        </label>
                     </div>
                 </form>
             </section>
@@ -69,7 +75,13 @@
                             <h3>Class {{ course.grade_level }} {{ course.subject }}</h3>
                             <div class="course-stats">
                                 <p><strong>Students:</strong> {{ course.students|length }}</p>
-                                <p><strong>Topics:</strong> {{ course.topics|length }}</p>
+                                {% set total_topics = course.topics|length %}
+                                {% set covered_topics = course.topics|selectattr("is_completed", "equalto", true)|list|length %}
+                                {% set progress = (covered_topics / total_topics * 100) if total_topics > 0 else 0 %}
+                                <p><strong>Syllabus Mastery:</strong> {{ covered_topics }}/{{ total_topics }} Topics</p>
+                                <div class="progress-container">
+                                    <div class="progress-fill" style="width: {{ progress }}%;"></div>
+                                </div>
                             </div>
                             <a href="{{ url_for('view_course', course_id=course.id) }}" class="btn btn-primary btn-sm block-btn">View Class Dashboard</a>
                         </div>
