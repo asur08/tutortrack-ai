@@ -10,8 +10,15 @@
 <body>
     <div class="container">
         <header class="header">
-            <h1>TutorTrack <span>AI</span></h1>
-            <p>Student Performance Tracking & Syllabus Management</p>
+            <div class="header-content">
+                <div class="header-title">
+                    <h1>TutorTrack <span>AI</span></h1>
+                    <p>Welcome, {{ current_user.username }}! Today is {{ current_date }}.</p>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('logout') }}" class="btn btn-secondary btn-sm">Logout</a>
+                </div>
+            </div>
         </header>
 
         <main class="dashboard-content">
@@ -75,6 +82,7 @@
                                     <td>{{ "%.1f"|format((record.marks_obtained / record.total_marks) * 100) }}%</td>
                                     <td>
                                         <a href="{{ url_for('generate_report', student_name=record.student_name) }}" class="btn btn-secondary btn-sm" target="_blank">Generate Report</a>
+                                        <button onclick="getAIInsight('{{ record.student_name }}')" class="btn btn-primary btn-sm ai-btn">✨ AI Insight</button>
                                     </td>
                                 </tr>
                                 {% else %}
@@ -144,5 +152,57 @@
             </div>
         </section>
     </div>
+
+    <!-- AI Insight Modal -->
+    <div id="aiModal" class="modal">
+        <div class="modal-content card">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <h2 class="modal-title">✨ AI Teaching Insight</h2>
+            <div id="aiLoading" style="display:none;" class="ai-loading">
+                <p>Analyzing recent scores with Gemini AI...</p>
+                <div class="spinner"></div>
+            </div>
+            <div id="aiResult"></div>
+        </div>
+    </div>
+
+    <script>
+        function getAIInsight(studentName) {
+            const modal = document.getElementById('aiModal');
+            const loading = document.getElementById('aiLoading');
+            const result = document.getElementById('aiResult');
+            
+            modal.style.display = 'flex';
+            loading.style.display = 'flex';
+            result.innerHTML = '';
+            
+            fetch(`/ai_insight/${encodeURIComponent(studentName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    loading.style.display = 'none';
+                    if (data.error) {
+                        result.innerHTML = `<p class="error-text">${data.error}</p>`;
+                    } else {
+                        const formattedText = data.insight.replace(/\n/g, '<br>');
+                        result.innerHTML = `<p class="insight-text">${formattedText}</p>`;
+                    }
+                })
+                .catch(err => {
+                    loading.style.display = 'none';
+                    result.innerHTML = `<p class="error-text">Network error occurred while fetching insights.</p>`;
+                });
+        }
+        
+        function closeModal() {
+            document.getElementById('aiModal').style.display = 'none';
+        }
+        
+        window.onclick = function(event) {
+            const modal = document.getElementById('aiModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
 </body>
 </html>
