@@ -1,38 +1,89 @@
 import os
-import sqlite3
 import matplotlib
 matplotlib.use('Agg')  # Headless mode for matplolib
 import matplotlib.pyplot as plt
 from flask import Flask, render_template, request, redirect, url_for
+from dotenv import load_dotenv
+
+# Load environment variables from .env if present
+load_dotenv()
 
 app = Flask(__name__)
-DB_FILE = 'tutortrack.db'
+
+# Determine if we should use PostgreSQL or fallback to SQLite
+DB_URL = os.environ.get('DATABASE_URL')
+# Render provides postgres:// sometimes instead of postgresql://
+if DB_URL and DB_URL.startswith('postgres'):
+    USE_POSTGRES = True
+    # Fix older postgres:// URI formats for sqlalchemy/psycopg2 if needed
+    if DB_URL.startswith('postgres://'):
+        DB_URL = DB_URL.replace('postgres://', 'postgresql://', 1)
+else:
+    USE_POSTGRES = False
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if USE_POSTGRES:
+        import psycopg2
+        from psycopg2.extras import DictCursor
+        conn = psycopg2.connect(DB_URL, cursor_factory=DictCursor)
+        return conn
+    else:
+        import sqlite3
+        conn = sqlite3.connect('tutortrack.db')
+        conn.row_factory = sqlite3.Row
+        return conn
+
+def execute_query(conn, query, params=(), commit=False, fetchone=False, fetchall=False):
+    """A database-agnostic query executor."""
+    # Convert SQLite '?' parameters to PostgreSQL '%s' if necessary
+    if USE_POSTGRES:
+        query = query.replace('?', '%s')
+    
+    cur = conn.cursor()
+    cur.execute(query, params)
+    
+    if commit:
+        conn.commit()
+    
+    result = None
+    if fetchone:
+        result = cur.fetchone()
+    elif fetchall:
+        result = cur.fetchall()
+        
+    cur.close()
+    return result
 
 def init_db():
     conn = get_db_connection()
-    conn.execute('''
+    
+    # Database-specific syntax
+    if USE_POSTGRES:
+        pk_type = "SERIAL PRIMARY KEY"
+        bool_default = "DEFAULT FALSE"
+    else:
+        pk_type = "INTEGER PRIMARY KEY AUTOINCREMENT"
+        bool_default = "DEFAULT 0"
+
+    execute_query(conn, f'''
         CREATE TABLE IF NOT EXISTS students (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk_type},
             student_name TEXT NOT NULL,
             subject_topic TEXT NOT NULL,
             marks_obtained INTEGER NOT NULL,
             total_marks INTEGER DEFAULT 100,
             test_date DATE NOT NULL
         )
-    ''')
-    conn.execute('''
+    ''', commit=True)
+    
+    execute_query(conn, f'''
         CREATE TABLE IF NOT EXISTS syllabus (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk_type},
             topic_name TEXT NOT NULL,
-            status BOOLEAN DEFAULT 0
+            status BOOLEAN {bool_default}
         )
-    ''')
-    conn.commit()
+    ''', commit=True)
+    
     conn.close()
 
 # Initialize db at startup
@@ -41,14 +92,13 @@ init_db()
 @app.route('/')
 def dashboard():
     conn = get_db_connection()
-    records = conn.execute('SELECT * FROM students ORDER BY test_date DESC').fetchall()
+    records = execute_query(conn, 'SELECT * FROM students ORDER BY test_date DESC', fetchall=True)
+    syllabus_items = execute_query(conn, 'SELECT * FROM syllabus ORDER BY id DESC', fetchall=True)
+    conn.close()
     
-    # Fetch syllabus items
-    syllabus_items = conn.execute('SELECT * FROM syllabus ORDER BY id DESC').fetchall()
     pending_topics = [item for item in syllabus_items if not item['status']]
     covered_topics = [item for item in syllabus_items if item['status']]
     
-    conn.close()
     return render_template('index.html', records=records, pending_topics=pending_topics, covered_topics=covered_topics)
 
 @app.route('/add_marks', methods=['POST'])
@@ -60,21 +110,23 @@ def add_marks():
     test_date = request.form['test_date']
 
     conn = get_db_connection()
-    conn.execute('INSERT INTO students (student_name, subject_topic, marks_obtained, total_marks, test_date) VALUES (?, ?, ?, ?, ?)',
-                 (student_name, subject_topic, marks_obtained, total_marks, test_date))
-    conn.commit()
+    execute_query(conn, 
+        'INSERT INTO students (student_name, subject_topic, marks_obtained, total_marks, test_date) VALUES (?, ?, ?, ?, ?)',
+        (student_name, subject_topic, marks_obtained, total_marks, test_date),
+        commit=True
+    )
     conn.close()
     return redirect(url_for('dashboard'))
 
 @app.route('/generate_report/<student_name>')
 def generate_report(student_name):
     conn = get_db_connection()
-    records = conn.execute('''
+    records = execute_query(conn, '''
         SELECT test_date, marks_obtained, total_marks
         FROM students 
         WHERE student_name = ?
         ORDER BY test_date ASC
-    ''', (student_name,)).fetchall()
+    ''', (student_name,), fetchall=True)
     conn.close()
 
     if not records:
@@ -111,27 +163,32 @@ def generate_report(student_name):
 def add_topic():
     topic_name = request.form['topic_name']
     conn = get_db_connection()
-    conn.execute('INSERT INTO syllabus (topic_name, status) VALUES (?, 0)', (topic_name,))
-    conn.commit()
+    # Using 0/1 for fallback logic as SQLite booleans are just ints and Postgres handles it fine. 
+    # Or explicitly use False to be Postgres native (SQLite supports True/False by casting to 1/0).
+    val = False if USE_POSTGRES else 0
+    execute_query(conn, 'INSERT INTO syllabus (topic_name, status) VALUES (?, ?)', (topic_name, val), commit=True)
     conn.close()
     return redirect(url_for('dashboard'))
 
 @app.route('/toggle_topic/<int:topic_id>', methods=['POST'])
 def toggle_topic(topic_id):
     conn = get_db_connection()
-    topic = conn.execute('SELECT status FROM syllabus WHERE id = ?', (topic_id,)).fetchone()
+    topic = execute_query(conn, 'SELECT status FROM syllabus WHERE id = ?', (topic_id,), fetchone=True)
     if topic is not None:
-        new_status = 1 if topic['status'] == 0 else 0
-        conn.execute('UPDATE syllabus SET status = ? WHERE id = ?', (new_status, topic_id))
-        conn.commit()
+        # Flip the status boolean
+        new_status = not bool(topic['status'])
+        # Depending on engine, ensure format is correct
+        if not USE_POSTGRES:
+            new_status = 1 if new_status else 0
+            
+        execute_query(conn, 'UPDATE syllabus SET status = ? WHERE id = ?', (new_status, topic_id), commit=True)
     conn.close()
     return redirect(url_for('dashboard'))
 
 @app.route('/delete_topic/<int:topic_id>', methods=['POST'])
 def delete_topic(topic_id):
     conn = get_db_connection()
-    conn.execute('DELETE FROM syllabus WHERE id = ?', (topic_id,))
-    conn.commit()
+    execute_query(conn, 'DELETE FROM syllabus WHERE id = ?', (topic_id,), commit=True)
     conn.close()
     return redirect(url_for('dashboard'))
 
