@@ -1,0 +1,24 @@
+# ── TutorTrack AI — Backend Requirements ────────────────────────────────────
+# Adapted from CGST Guruvayoor Guesthouse backend.
+# Install: pip install -r requirements.txt
+
+# Web framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# Settings management
+pydantic[email]==2.8.2
+pydantic-settings==2.4.0
+
+# Firebase Admin SDK (Firestore)
+firebase-admin==6.5.0
+
+# JWT authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Rate limiting
+slowapi==0.1.9
+
+# Environment variables
+python-dotenv==1.0.1

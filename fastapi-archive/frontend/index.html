@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TutorTrack AI — Student Performance Tracker</title>
+  <meta name="description" content="TutorTrack AI helps math teachers record and track student test performance, marks, grades, and analytics — all in one elegant dashboard." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════ HEADER ═══════════════════════ -->
+  <header class="header" id="site-header">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="28" height="28" rx="8" fill="url(#logoGrad)"/>
+            <path d="M8 20L14 8L20 20M11 16h6" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs>
+              <linearGradient id="logoGrad" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#7C3AED"/>
+                <stop offset="1" stop-color="#4F46E5"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <span class="logo-text">TutorTrack <span class="logo-ai">AI</span></span>
+      </div>
+      <nav class="nav">
+        <a href="#add-record" class="nav-link">Add Record</a>
+        <a href="#records-table" class="nav-link">Records</a>
+        <a href="#analytics" class="nav-link">Analytics</a>
+      </nav>
+      <button class="btn btn-primary" id="add-record-btn" aria-label="Add new student record">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a.75.75 0 0 1 .75.75v5.5h5.5a.75.75 0 0 1 0 1.5h-5.5v5.5a.75.75 0 0 1-1.5 0v-5.5H1.75a.75.75 0 0 1 0-1.5h5.5V1.75A.75.75 0 0 1 8 1Z"/></svg>
+        New Record
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════ HERO ═══════════════════════ -->
+  <section class="hero">
+    <div class="hero-glow hero-glow-1"></div>
+    <div class="hero-glow hero-glow-2"></div>
+    <div class="hero-content">
+      <div class="hero-badge">
+        <span class="badge-dot"></span>
+        Built for Math Teachers
+      </div>
+      <h1 class="hero-title">
+        Track Every Student's<br/>
+        <span class="hero-gradient">Performance with Clarity</span>
+      </h1>
+      <p class="hero-subtitle">
+        Record student names, test dates, and marks obtained in seconds.
+        Get instant grade analysis and class-level insights — powered by AI.
+      </p>
+      <div class="hero-actions">
+        <button class="btn btn-primary btn-lg" id="hero-add-btn" aria-label="Start adding student records">
+          Start Tracking
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z"/></svg>
+        </button>
+        <button class="btn btn-ghost btn-lg" id="view-records-btn" aria-label="View existing records">View Records</button>
+      </div>
+    </div>
+    <!-- Stats bar -->
+    <div class="stats-bar">
+      <div class="stat-item" id="stat-total">
+        <span class="stat-number" id="stat-total-val">0</span>
+        <span class="stat-label">Total Records</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-number" id="stat-avg-val">—</span>
+        <span class="stat-label">Avg. Marks</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-number" id="stat-top-val">—</span>
+        <span class="stat-label">Top Score</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-number" id="stat-classes-val">0</span>
+        <span class="stat-label">Classes</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ MODAL — ADD RECORD ═══════════════════════ -->
+  <div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal" id="add-record-modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-title">Add Student Record</h2>
+        <button class="modal-close" id="modal-close-btn" aria-label="Close modal">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414Z"/></svg>
+        </button>
+      </div>
+
+      <form id="record-form" novalidate>
+        <div class="form-grid">
+          <!-- Student Name (was: Guest Name) -->
+          <div class="form-group form-group-full">
+            <label class="form-label" for="student-name">Student Name <span class="required">*</span></label>
+            <input type="text" id="student-name" name="student_name" class="form-input"
+                   placeholder="e.g. Aanya Sharma" required autocomplete="off" />
+            <span class="form-error" id="err-student-name"></span>
+          </div>
+
+          <!-- Roll Number -->
+          <div class="form-group">
+            <label class="form-label" for="roll-number">Roll Number <span class="required">*</span></label>
+            <input type="text" id="roll-number" name="roll_number" class="form-input"
+                   placeholder="e.g. 2024-101" required autocomplete="off" />
+            <span class="form-error" id="err-roll-number"></span>
+          </div>
+
+          <!-- Class -->
+          <div class="form-group">
+            <label class="form-label" for="class-name">Class <span class="required">*</span></label>
+            <input type="text" id="class-name" name="class_name" class="form-input"
+                   placeholder="e.g. Grade 8B" required autocomplete="off" />
+            <span class="form-error" id="err-class-name"></span>
+          </div>
+
+          <!-- Subject -->
+          <div class="form-group">
+            <label class="form-label" for="subject">Subject <span class="required">*</span></label>
+            <input type="text" id="subject" name="subject" class="form-input"
+                   placeholder="e.g. Mathematics" required autocomplete="off" />
+            <span class="form-error" id="err-subject"></span>
+          </div>
+
+          <!-- Test Date (was: Check-in Date) -->
+          <div class="form-group">
+            <label class="form-label" for="test-date">Test Date <span class="required">*</span></label>
+            <input type="date" id="test-date" name="test_date" class="form-input" required />
+            <span class="form-error" id="err-test-date"></span>
+          </div>
+
+          <!-- Marks Obtained (was: Room Price) -->
+          <div class="form-group">
+            <label class="form-label" for="marks-obtained">Marks Obtained <span class="required">*</span></label>
+            <div class="input-with-suffix">
+              <input type="number" id="marks-obtained" name="marks_obtained" class="form-input"
+                     placeholder="e.g. 78" min="0" max="100" step="0.5" required />
+              <span class="input-suffix" id="marks-suffix">/ <span id="suffix-max">100</span></span>
+            </div>
+            <span class="form-error" id="err-marks-obtained"></span>
+          </div>
+
+          <!-- Max Marks -->
+          <div class="form-group">
+            <label class="form-label" for="max-marks">Max Marks</label>
+            <input type="number" id="max-marks" name="max_marks" class="form-input"
+                   placeholder="100" min="1" max="100" step="1" value="100" />
+            <span class="form-hint">Default is 100</span>
+          </div>
+
+          <!-- Grade Preview -->
+          <div class="form-group">
+            <label class="form-label">Grade Preview</label>
+            <div class="grade-preview" id="grade-preview">
+              <span class="grade-badge grade-none" id="grade-badge">Enter marks above</span>
+            </div>
+          </div>
+
+          <!-- Remarks -->
+          <div class="form-group form-group-full">
+            <label class="form-label" for="remarks">Remarks</label>
+            <textarea id="remarks" name="remarks" class="form-input form-textarea"
+                      placeholder="Optional notes about this test or student performance..." rows="3"></textarea>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" id="form-cancel-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="form-submit-btn">
+            <span id="submit-text">Save Record</span>
+            <div class="spinner" id="form-spinner"></div>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ MAIN CONTENT ═══════════════════════ -->
+  <main class="main">
+
+    <!-- ── Records Section ── -->
+    <section class="section" id="records-table">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Student Records</h2>
+          <p class="section-subtitle">All test results tracked in one place</p>
+        </div>
+        <div class="section-controls">
+          <div class="search-box">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099Zm-5.44 1.406a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11Z"/></svg>
+            <input type="text" id="search-input" class="search-input" placeholder="Search student, class, subject..." aria-label="Search records" />
+          </div>
+          <select class="filter-select" id="filter-status" aria-label="Filter by status">
+            <option value="all">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Reviewed">Reviewed</option>
+            <option value="Archived">Archived</option>
+          </select>
+          <select class="filter-select" id="filter-grade" aria-label="Filter by grade">
+            <option value="all">All Grades</option>
+            <option value="Outstanding">Outstanding</option>
+            <option value="Excellent">Excellent</option>
+            <option value="Good">Good</option>
+            <option value="Average">Average</option>
+            <option value="Needs Work">Needs Work</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Loading state -->
+      <div class="loading-state" id="records-loading">
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+      </div>
+
+      <!-- Empty state -->
+      <div class="empty-state hidden" id="records-empty">
+        <div class="empty-icon">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="12" fill="#1e1b4b"/><path d="M16 32L24 16L32 32M20 26H28" stroke="#7C3AED" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3 class="empty-title">No records yet</h3>
+        <p class="empty-desc">Add your first student record to get started.</p>
+        <button class="btn btn-primary" id="empty-add-btn">Add First Record</button>
+      </div>
+
+      <!-- Records table -->
+      <div class="table-wrapper hidden" id="records-table-wrapper">
+        <table class="records-table" aria-label="Student records">
+          <thead>
+            <tr>
+              <th>Student Name</th>
+              <th>Class</th>
+              <th>Subject</th>
+              <th>Test Date</th>
+              <th>Marks</th>
+              <th>Grade</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="records-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Analytics Section ── -->
+    <section class="section" id="analytics">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Class Analytics</h2>
+          <p class="section-subtitle">Performance breakdown by class and subject</p>
+        </div>
+      </div>
+
+      <div class="analytics-empty hidden" id="analytics-empty">
+        <p class="analytics-empty-text">Add records to see analytics</p>
+      </div>
+
+      <div class="analytics-grid" id="analytics-grid"></div>
+    </section>
+
+  </main>
+
+  <!-- ═══════════════════════ TOAST ═══════════════════════ -->
+  <div class="toast-container" id="toast-container" role="status" aria-live="polite"></div>
+
+  <!-- ═══════════════════════ FOOTER ═══════════════════════ -->
+  <footer class="footer">
+    <p>TutorTrack AI &copy; 2025 — Built with ❤️ for Teachers</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
