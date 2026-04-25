@@ -168,12 +168,14 @@ with app.app_context():
                     db.session.rollback()
                     print(f"[MIGRATION] Skipping users.{col_name}: {e}")
         
-        # Mark all pre-existing users as verified so they can log in without OTP
+        # Mark all pre-existing users as verified and approved so they can log in
         try:
             db.session.execute(text("UPDATE users SET is_verified = TRUE WHERE is_verified IS NULL OR is_verified = FALSE"))
-            db.session.execute(text("UPDATE users SET is_approved = TRUE WHERE is_approved IS NULL"))
+            db.session.execute(text("UPDATE users SET is_approved = TRUE WHERE is_approved IS NULL OR is_approved = FALSE"))
+            # Ensure the master admin account has superadmin privileges
+            db.session.execute(text("UPDATE users SET is_superadmin = TRUE, role = 'admin' WHERE username = 'tutortrackerai@gmail.com'"))
             db.session.commit()
-            print("[MIGRATION] Marked existing users as verified and approved.")
+            print("[MIGRATION] Marked existing users as verified/approved. Master admin promoted.")
         except Exception as e:
             db.session.rollback()
             print(f"[MIGRATION] Could not update existing users: {e}")
