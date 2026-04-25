@@ -574,3 +574,88 @@ input:focus, select:focus {
         display: none;
     }
 }
+
+/* Global Footer */
+.global-footer {
+    text-align: center;
+    padding: 2rem;
+    margin-top: auto;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-top: 1px solid var(--border-color);
+}
+.global-footer a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+}
+.global-footer a:hover {
+    text-decoration: underline;
+}
+
+/* Static Bottom Right Button Container */
+.bottom-right-action {
+    display: flex;
+    justify-content: flex-end;
+    padding: 1rem 0;
+    margin-top: 2rem;
+}
+
+/* Paywall Overlay */
+.analytics-wrapper {
+    position: relative;
+}
+.paywall-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    z-index: 10;
+    text-align: center;
+    padding: 2rem;
+}
+.paywall-overlay h3 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-main);
+}
+.paywall-overlay p {
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+    max-width: 300px;
+}
+
+/* Admin Dashboard Tabs */
+.admin-tabs {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+.admin-tab-btn {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+.admin-tab-btn.active {
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
+}
+.admin-tab-content {
+    display: none;
+}
+.admin-tab-content.active {
+    display: block;
+}

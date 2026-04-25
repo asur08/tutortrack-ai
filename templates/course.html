@@ -84,31 +84,40 @@
                 <!-- Analytics Section -->
                 <section class="card glass-card mt-2">
                     <h2>Performance Analytics</h2>
-                    <div class="analytics-grid">
-                        <div class="analytics-box needs-support">
-                            <h3>Needs Support</h3>
-                            {% if needs_support %}
-                                <ul>
-                                    {% for s in needs_support %}
-                                        <li>{{ s.name }} ({{ "%.1f"|format(s.average_percentage) }}%)</li>
-                                    {% endfor %}
-                                </ul>
-                            {% else %}
-                                <p class="muted">No students currently flagged.</p>
-                            {% endif %}
+                    <div class="analytics-wrapper">
+                        <div class="analytics-grid" {% if is_trial_expired %}style="filter: blur(4px); pointer-events: none;"{% endif %}>
+                            <div class="analytics-box needs-support">
+                                <h3>Needs Support</h3>
+                                {% if needs_support %}
+                                    <ul>
+                                        {% for s in needs_support %}
+                                            <li>{{ s.name }} ({{ "%.1f"|format(s.average_percentage) }}%)</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <p class="muted">No students currently flagged.</p>
+                                {% endif %}
+                            </div>
+                            <div class="analytics-box top-performers">
+                                <h3>Top Performers</h3>
+                                {% if top_performers %}
+                                    <ul>
+                                        {% for s in top_performers %}
+                                            <li>{{ s.name }} ({{ "%.1f"|format(s.average_percentage) }}%)</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <p class="muted">Need more data.</p>
+                                {% endif %}
+                            </div>
                         </div>
-                        <div class="analytics-box top-performers">
-                            <h3>Top Performers</h3>
-                            {% if top_performers %}
-                                <ul>
-                                    {% for s in top_performers %}
-                                        <li>{{ s.name }} ({{ "%.1f"|format(s.average_percentage) }}%)</li>
-                                    {% endfor %}
-                                </ul>
-                            {% else %}
-                                <p class="muted">Need more data.</p>
-                            {% endif %}
+                        {% if is_trial_expired %}
+                        <div class="paywall-overlay">
+                            <h3>Analytics Locked</h3>
+                            <p>Your 30-day trial has expired. Upgrade your plan to unlock advanced analytics and AI insights.</p>
+                            <button class="btn btn-primary" onclick="alert('Razorpay integration coming soon!')">Upgrade via Razorpay</button>
                         </div>
+                        {% endif %}
                     </div>
                 </section>
             </div>
@@ -198,7 +207,34 @@
                 </section>
             </div>
         </main>
+        
+        <div class="bottom-right-action">
+            <button class="btn btn-secondary" onclick="document.getElementById('ticketModal').style.display='flex'">Raise a Ticket</button>
+        </div>
     </div>
+    
+    <!-- Ticket Modal -->
+    <div id="ticketModal" class="modal">
+        <div class="modal-content glass-card" style="position: relative;">
+            <span class="close-modal" onclick="document.getElementById('ticketModal').style.display='none'">&times;</span>
+            <h2 style="margin-bottom: 1rem;">Contact Support</h2>
+            <form action="{{ url_for('submit_ticket') }}" method="POST">
+                <div class="form-group">
+                    <label for="ticket_subject">Subject</label>
+                    <input type="text" id="ticket_subject" name="subject" required>
+                </div>
+                <div class="form-group">
+                    <label for="ticket_message">Description</label>
+                    <textarea id="ticket_message" name="message" rows="4" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 10px; font-family: inherit; outline: none; transition: all 0.2s;" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary block-btn">Submit Ticket</button>
+            </form>
+        </div>
+    </div>
+    
+    <footer class="global-footer">
+        <p>&copy; 2026 TutorTrack AI. All rights reserved. | <a href="mailto:tutortrackerai@gmail.com">Contact Us</a></p>
+    </footer>
 
     <!-- AI Insight Modal -->
     <div id="aiModal" class="modal">

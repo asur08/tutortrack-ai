@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - TutorTrack AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content glass-card">
+                <div class="header-title">
+                    <h1>Super Admin <span>Dashboard</span></h1>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-sm" style="margin-right: 0.5rem;">Main Site</a>
+                    <a href="{{ url_for('logout') }}" class="btn btn-secondary btn-sm">Logout</a>
+                </div>
+            </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <main class="dashboard-content single-column">
+            <section class="card glass-card">
+                <div class="admin-tabs">
+                    <button class="admin-tab-btn active" onclick="showTab('approvals', this)">User Approvals</button>
+                    <button class="admin-tab-btn" onclick="showTab('financials', this)">Financials</button>
+                    <button class="admin-tab-btn" onclick="showTab('support', this)">Support Inbox</button>
+                </div>
+
+                <!-- Approvals Tab -->
+                <div id="approvals" class="admin-tab-content active">
+                    <h2>Pending Teacher Approvals</h2>
+                    {% if pending_teachers %}
+                    <table class="minimal-table" style="margin-top: 1rem;">
+                        <tr>
+                            <th>Email</th>
+                            <th>Referral Code Used</th>
+                            <th style="text-align: right;">Action</th>
+                        </tr>
+                        {% for teacher in pending_teachers %}
+                        <tr>
+                            <td>{{ teacher.username }}</td>
+                            <td>{{ teacher.referred_by or 'None' }}</td>
+                            <td style="text-align: right;">
+                                <form action="{{ url_for('approve_teacher', teacher_id=teacher.id) }}" method="POST">
+                                    <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                    {% else %}
+                    <p class="muted mt-2">No pending teacher approvals at the moment.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Financials Tab -->
+                <div id="financials" class="admin-tab-content">
+                    <h2>Financial Overview</h2>
+                    <div class="analytics-grid" style="margin-top: 1.5rem;">
+                        <div class="analytics-box">
+                            <h3>Active Trials</h3>
+                            <p style="font-size: 2rem; font-weight: bold; color: var(--success-color);">{{ active_trials }}</p>
+                        </div>
+                        <div class="analytics-box">
+                            <h3>Expired Trials</h3>
+                            <p style="font-size: 2rem; font-weight: bold; color: var(--danger-color);">{{ expired_trials }}</p>
+                        </div>
+                        <div class="analytics-box">
+                            <h3>Referrals Used</h3>
+                            <p style="font-size: 2rem; font-weight: bold; color: var(--primary-color);">{{ referrals_count }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Support Tab -->
+                <div id="support" class="admin-tab-content">
+                    <h2>Support Inbox</h2>
+                    {% if open_tickets %}
+                    <div class="students-accordion">
+                        {% for ticket in open_tickets %}
+                        <div class="student-block">
+                            <div class="student-header">
+                                <h4>{{ ticket.subject }}</h4>
+                                <div class="student-header-actions">
+                                    <form action="{{ url_for('resolve_ticket', ticket_id=ticket.id) }}" method="POST">
+                                        <button type="submit" class="btn btn-primary btn-sm">Mark Resolved</button>
+                                    </form>
+                                </div>
+                            </div>
+                            <p class="small muted">From: {{ ticket.user.username }} | Role: {{ ticket.user.role }} | Date: {{ ticket.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            <div style="margin-top: 1rem; padding: 1rem; background: var(--secondary-color); border-radius: 8px;">
+                                <p>{{ ticket.message }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="muted mt-2">All caught up! No open support tickets.</p>
+                    {% endif %}
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        function showTab(tabId, btn) {
+            document.querySelectorAll('.admin-tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+        }
+    </script>
+</body>
+</html>

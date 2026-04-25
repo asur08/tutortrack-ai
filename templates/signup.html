@@ -57,12 +57,16 @@
                         <label>Role</label>
                         <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
                             <label style="display: flex; align-items: center; gap: 0.5rem;">
-                                <input type="radio" name="role" value="student" checked> I am a Student
+                                <input type="radio" name="role" value="student" checked onchange="document.getElementById('referral-group').style.display='none'"> I am a Student
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.5rem;">
-                                <input type="radio" name="role" value="teacher"> I am a Teacher
+                                <input type="radio" name="role" value="teacher" onchange="document.getElementById('referral-group').style.display='block'"> I am a Teacher
                             </label>
                         </div>
+                    </div>
+                    <div class="form-group" id="referral-group" style="display: none; margin-top: 1rem;">
+                        <label for="referred_by">Referral Code (Optional)</label>
+                        <input type="text" id="referred_by" name="referred_by" placeholder="e.g. TCH-123456">
                     </div>
                     <button type="submit" class="btn btn-primary block-btn" style="margin-top: 1rem;">Sign Up</button>
                 </form>
@@ -73,6 +77,10 @@
             </div>
         </div>
     </div>
+    
+    <footer class="global-footer">
+        <p>&copy; 2026 TutorTrack AI. All rights reserved. | <a href="mailto:tutortrackerai@gmail.com">Contact Us</a></p>
+    </footer>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {

@@ -53,6 +53,21 @@ class User(UserMixin, db.Model):
     otp_code = db.Column(db.String(6), nullable=True)
     otp_expiry = db.Column(db.DateTime, nullable=True)
     courses = db.relationship('CourseClass', backref='tutor', lazy=True, cascade="all, delete-orphan")
+    is_superadmin = db.Column(db.Boolean, default=False)
+    trial_ends_at = db.Column(db.DateTime, nullable=True)
+    referral_code = db.Column(db.String(50), unique=True, nullable=True)
+    referred_by = db.Column(db.String(50), nullable=True)
+    is_approved = db.Column(db.Boolean, default=False)
+    tickets = db.relationship('SupportTicket', backref='user', lazy=True, cascade="all, delete-orphan")
+
+class SupportTicket(db.Model):
+    __tablename__ = 'support_tickets'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    subject = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default='open')
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
 class MasterSyllabus(db.Model):
     __tablename__ = 'master_syllabus'
@@ -123,6 +138,46 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
     
+    # --- Auto-migration for existing databases (e.g. Render PostgreSQL) ---
+    # db.create_all() only creates NEW tables; it won't add columns to existing ones.
+    # This block safely patches any missing columns so old user rows don't crash.
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    
+    if 'users' in inspector.get_table_names():
+        existing_columns = {col['name'] for col in inspector.get_columns('users')}
+        
+        migrations = {
+            'is_verified': "ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE",
+            'otp_code': "ALTER TABLE users ADD COLUMN otp_code VARCHAR(6)",
+            'otp_expiry': "ALTER TABLE users ADD COLUMN otp_expiry TIMESTAMP",
+            'is_superadmin': "ALTER TABLE users ADD COLUMN is_superadmin BOOLEAN DEFAULT FALSE",
+            'trial_ends_at': "ALTER TABLE users ADD COLUMN trial_ends_at TIMESTAMP",
+            'referral_code': "ALTER TABLE users ADD COLUMN referral_code VARCHAR(50)",
+            'referred_by': "ALTER TABLE users ADD COLUMN referred_by VARCHAR(50)",
+            'is_approved': "ALTER TABLE users ADD COLUMN is_approved BOOLEAN DEFAULT FALSE",
+        }
+        
+        for col_name, alter_sql in migrations.items():
+            if col_name not in existing_columns:
+                try:
+                    db.session.execute(text(alter_sql))
+                    db.session.commit()
+                    print(f"[MIGRATION] Added missing column: users.{col_name}")
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"[MIGRATION] Skipping users.{col_name}: {e}")
+        
+        # Mark all pre-existing users as verified so they can log in without OTP
+        try:
+            db.session.execute(text("UPDATE users SET is_verified = TRUE WHERE is_verified IS NULL OR is_verified = FALSE"))
+            db.session.execute(text("UPDATE users SET is_approved = TRUE WHERE is_approved IS NULL"))
+            db.session.commit()
+            print("[MIGRATION] Marked existing users as verified and approved.")
+        except Exception as e:
+            db.session.rollback()
+            print(f"[MIGRATION] Could not update existing users: {e}")
+    
     # Pre-load MasterSyllabus if empty
     if MasterSyllabus.query.count() == 0:
         for grade, topics in NCERT_MATH_SYLLABUS.items():
@@ -153,10 +208,31 @@ def signup():
         if role not in ['teacher', 'student', 'admin']:
             role = 'student'
             
+        is_superadmin = False
+        is_approved = True
+        referral_code = None
+        referred_by = request.form.get('referred_by', None)
+        
+        if username == 'tutortrackerai@gmail.com':
+            role = 'admin'
+            is_superadmin = True
+            is_approved = True
+            
+        if role == 'teacher':
+            is_approved = False
+            import string
+            import random
+            while True:
+                code = 'TCH-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+                if not User.query.filter_by(referral_code=code).first():
+                    referral_code = code
+                    break
+            
         otp = str(random.randint(100000, 999999))
         expiry = datetime.datetime.now() + datetime.timedelta(minutes=10)
         
-        new_user = User(username=username, password_hash=hashed_password, role=role, otp_code=otp, otp_expiry=expiry)
+        new_user = User(username=username, password_hash=hashed_password, role=role, otp_code=otp, otp_expiry=expiry,
+                        is_superadmin=is_superadmin, is_approved=is_approved, referral_code=referral_code, referred_by=referred_by)
         db.session.add(new_user)
         db.session.commit()
         
@@ -232,6 +308,76 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+from functools import wraps
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_superadmin:
+            flash('You do not have permission to access this page.', 'error')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/admin/dashboard')
+@login_required
+@admin_required
+def admin_dashboard():
+    pending_teachers = User.query.filter_by(role='teacher', is_approved=False).all()
+    open_tickets = SupportTicket.query.filter_by(status='open').all()
+    now = datetime.datetime.now()
+    active_trials = User.query.filter(User.role == 'student', User.trial_ends_at != None, User.trial_ends_at > now).count()
+    expired_trials = User.query.filter(User.role == 'student', User.trial_ends_at != None, User.trial_ends_at <= now).count()
+    referrals_count = User.query.filter(User.referred_by != None, User.referred_by != '').count()
+    
+    return render_template('admin_dashboard.html', 
+                           pending_teachers=pending_teachers, 
+                           open_tickets=open_tickets,
+                           active_trials=active_trials,
+                           expired_trials=expired_trials,
+                           referrals_count=referrals_count)
+
+@app.route('/admin/approve_teacher/<int:teacher_id>', methods=['POST'])
+@login_required
+@admin_required
+def approve_teacher(teacher_id):
+    teacher = User.query.get_or_404(teacher_id)
+    if teacher.role == 'teacher':
+        teacher.is_approved = True
+        db.session.commit()
+        flash(f'Teacher {teacher.username} approved.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/resolve_ticket/<int:ticket_id>', methods=['POST'])
+@login_required
+@admin_required
+def resolve_ticket(ticket_id):
+    ticket = SupportTicket.query.get_or_404(ticket_id)
+    ticket.status = 'resolved'
+    db.session.commit()
+    flash(f'Ticket #{ticket.id} marked as resolved.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/submit_ticket', methods=['POST'])
+@login_required
+def submit_ticket():
+    subject = request.form.get('subject')
+    message = request.form.get('message')
+    
+    ticket = SupportTicket(user_id=current_user.id, subject=subject, message=message)
+    db.session.add(ticket)
+    db.session.commit()
+    
+    try:
+        msg = Message(f"New Ticket from {current_user.username}: {subject}", recipients=['tutortrackerai@gmail.com'])
+        msg.body = f"User: {current_user.username}\nRole: {current_user.role}\n\nSubject: {subject}\n\nMessage:\n{message}"
+        mail.send(msg)
+    except Exception as e:
+        print(f"FAILED TO SEND TICKET EMAIL: {e}")
+        
+    flash('Your support ticket has been submitted successfully.', 'success')
+    return redirect(request.referrer or url_for('dashboard'))
+
 
 # --- Main App Routes ---
 @app.route('/')
@@ -239,7 +385,13 @@ def logout():
 def dashboard():
     current_date = datetime.datetime.now().strftime("%A, %B %d, %Y")
     
+    if current_user.is_superadmin:
+        return redirect(url_for('admin_dashboard'))
+    
     if current_user.role == 'teacher':
+        if not current_user.is_approved:
+            return render_template('index.html', unapproved_teacher=True, current_date=current_date)
+            
         courses = CourseClass.query.filter_by(user_id=current_user.id).all()
         course_ids = [c.id for c in courses]
         pending_requests = Enrollment.query.filter(Enrollment.class_id.in_(course_ids), Enrollment.status == 'pending').all() if course_ids else []
@@ -256,6 +408,9 @@ def dashboard():
 @app.route('/create_course', methods=['POST'])
 @login_required
 def create_course():
+    if current_user.role != 'teacher' or not current_user.is_approved:
+        return "Unauthorized", 403
+        
     import string
     
     grade_level = int(request.form['grade_level'])
@@ -302,6 +457,10 @@ def join_class():
         
     new_enrollment = Enrollment(student_id=current_user.id, class_id=course.id, status='pending')
     db.session.add(new_enrollment)
+    
+    if not current_user.trial_ends_at:
+        current_user.trial_ends_at = datetime.datetime.now() + datetime.timedelta(days=30)
+        
     db.session.commit()
     flash(f'Request to join {course.subject} Class {course.grade_level} sent! Waiting for teacher approval.', 'success')
     return redirect(url_for('dashboard'))
@@ -373,11 +532,16 @@ def view_course(course_id):
                 top_performers.append(s)
 
     current_date = datetime.datetime.now().strftime("%A, %B %d, %Y")
+    now = datetime.datetime.now()
+    is_trial_expired = False
+    if current_user.role == 'student' and current_user.trial_ends_at:
+        if current_user.trial_ends_at < now:
+            is_trial_expired = True
     
     return render_template('course.html', course=course, students=students, 
                            pending_topics=pending_topics, covered_topics=covered_topics,
                            class_average=class_average, top_performers=top_performers, 
-                           needs_support=needs_support, current_date=current_date)
+                           needs_support=needs_support, current_date=current_date, is_trial_expired=is_trial_expired)
 
 @app.route('/course/<int:course_id>/add_student', methods=['POST'])
 @login_required
