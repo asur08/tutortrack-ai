@@ -6,6 +6,10 @@
     <title>Class {{ course.grade_level }} {{ course.subject }} - TutorTrack AI</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/static/images/icon-192x192.png">
 </head>
 <body>
     <div class="container">
@@ -245,6 +249,13 @@
             if (event.target == modal) {
                 closeModal();
             }
+        }
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js');
+            });
         }
     </script>
 </body>
