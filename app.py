@@ -58,6 +58,8 @@ class User(UserMixin, db.Model):
     referral_code = db.Column(db.String(50), unique=True, nullable=True)
     referred_by = db.Column(db.String(50), nullable=True)
     is_approved = db.Column(db.Boolean, default=False)
+    is_suspended = db.Column(db.Boolean, default=False)
+    account_status = db.Column(db.String(20), default='active')  # active, deleted
     tickets = db.relationship('SupportTicket', backref='user', lazy=True, cascade="all, delete-orphan")
 
 class SupportTicket(db.Model):
@@ -156,6 +158,8 @@ with app.app_context():
             'referral_code': "ALTER TABLE users ADD COLUMN referral_code VARCHAR(50)",
             'referred_by': "ALTER TABLE users ADD COLUMN referred_by VARCHAR(50)",
             'is_approved': "ALTER TABLE users ADD COLUMN is_approved BOOLEAN DEFAULT FALSE",
+            'is_suspended': "ALTER TABLE users ADD COLUMN is_suspended BOOLEAN DEFAULT FALSE",
+            'account_status': "ALTER TABLE users ADD COLUMN account_status VARCHAR(20) DEFAULT 'active'",
         }
         
         for col_name, alter_sql in migrations.items():
@@ -283,6 +287,11 @@ def login():
         user = User.query.filter_by(username=username).first()
         
         if user and check_password_hash(user.password_hash, password):
+            # Block suspended or soft-deleted accounts
+            if user.is_suspended or (hasattr(user, 'account_status') and user.account_status == 'deleted'):
+                flash('This account has been suspended or deleted. Please contact support.', 'error')
+                return redirect(url_for('login'))
+            
             if not user.is_verified:
                 otp = str(random.randint(100000, 999999))
                 user.otp_code = otp
@@ -326,6 +335,8 @@ def admin_required(f):
 @admin_required
 def admin_dashboard():
     pending_teachers = User.query.filter_by(role='teacher', is_approved=False).all()
+    all_teachers = User.query.filter_by(role='teacher').all()
+    all_students = User.query.filter_by(role='student').all()
     open_tickets = SupportTicket.query.filter_by(status='open').all()
     now = datetime.datetime.now()
     active_trials = User.query.filter(User.role == 'student', User.trial_ends_at != None, User.trial_ends_at > now).count()
@@ -333,7 +344,9 @@ def admin_dashboard():
     referrals_count = User.query.filter(User.referred_by != None, User.referred_by != '').count()
     
     return render_template('admin_dashboard.html', 
-                           pending_teachers=pending_teachers, 
+                           pending_teachers=pending_teachers,
+                           all_teachers=all_teachers,
+                           all_students=all_students,
                            open_tickets=open_tickets,
                            active_trials=active_trials,
                            expired_trials=expired_trials,
@@ -359,6 +372,78 @@ def resolve_ticket(ticket_id):
     db.session.commit()
     flash(f'Ticket #{ticket.id} marked as resolved.', 'success')
     return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/suspend_user/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def suspend_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.is_superadmin:
+        flash('Cannot suspend a superadmin account.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    user.is_suspended = True
+    db.session.commit()
+    flash(f'User {user.username} has been suspended.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/unsuspend_user/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def unsuspend_user(user_id):
+    user = User.query.get_or_404(user_id)
+    user.is_suspended = False
+    db.session.commit()
+    flash(f'User {user.username} has been reactivated.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.is_superadmin:
+        flash('Cannot delete a superadmin account.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    username = user.username
+    db.session.delete(user)
+    db.session.commit()
+    flash(f'User {username} has been permanently deleted.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/update_role/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def update_role(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.is_superadmin:
+        flash('Cannot change the role of a superadmin.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    new_role = request.form.get('role')
+    if new_role not in ['teacher', 'student', 'parent', 'admin']:
+        flash('Invalid role selected.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    user.role = new_role
+    db.session.commit()
+    flash(f'User role updated successfully.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/settings')
+@login_required
+def settings():
+    return render_template('settings.html')
+
+@app.route('/delete_my_account', methods=['POST'])
+@login_required
+def delete_my_account():
+    user = current_user
+    if user.is_superadmin:
+        flash('Superadmin accounts cannot be self-deleted.', 'error')
+        return redirect(url_for('settings'))
+    user.account_status = 'deleted'
+    db.session.commit()
+    logout_user()
+    flash('Your account has been deleted. We are sorry to see you go.', 'success')
+    return redirect(url_for('signup'))
 
 @app.route('/submit_ticket', methods=['POST'])
 @login_required

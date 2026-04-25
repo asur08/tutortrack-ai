@@ -20,6 +20,7 @@
                     <p>Welcome, {{ current_user.username }}! Today is {{ current_date }}.</p>
                 </div>
                 <div class="header-actions">
+                    <a href="{{ url_for('settings') }}" class="btn btn-secondary btn-sm" style="margin-right: 0.5rem;">⚙ Settings</a>
                     <a href="{{ url_for('logout') }}" class="btn btn-secondary btn-sm">Logout</a>
                 </div>
             </div>

@@ -6,6 +6,150 @@
     <title>Admin Dashboard - TutorTrack AI</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .admin-tabs {
+            display: flex;
+            gap: 0.25rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0;
+            overflow-x: auto;
+        }
+        .admin-tab-btn {
+            padding: 0.75rem 1.25rem;
+            border: none;
+            background: none;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .admin-tab-btn:hover { color: var(--text-main); }
+        .admin-tab-btn.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+        .admin-tab-content { display: none; }
+        .admin-tab-content.active { display: block; }
+
+        .user-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.25rem 1.5rem;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 0.75rem;
+            transition: box-shadow 0.2s;
+        }
+        .user-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+        .user-info { display: flex; align-items: center; gap: 1rem; flex: 1; }
+        .user-avatar {
+            width: 42px; height: 42px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 1rem;
+            flex-shrink: 0;
+        }
+        .user-avatar.suspended { background: var(--danger-color); }
+        .user-avatar.deleted { background: var(--text-muted); }
+        .user-details h4 { font-size: 0.95rem; margin-bottom: 0.15rem; }
+        .user-details p { font-size: 0.8rem; color: var(--text-muted); }
+        .user-actions { display: flex; gap: 0.5rem; align-items: center; }
+        .user-actions form { margin: 0; }
+
+        .role-select {
+            padding: 0.35rem 0.6rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            background: var(--secondary-color);
+            cursor: pointer;
+            outline: none;
+        }
+        .role-select:focus { border-color: var(--primary-color); }
+
+        .btn-danger {
+            background-color: #fee2e2;
+            color: #dc2626;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .btn-danger:hover { background-color: #fecaca; }
+
+        .btn-warn {
+            background-color: #fef3c7;
+            color: #d97706;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .btn-warn:hover { background-color: #fde68a; }
+
+        .btn-restore {
+            background-color: #d1fae5;
+            color: #065f46;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .btn-restore:hover { background-color: #a7f3d0; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .status-active { background: #d1fae5; color: #065f46; }
+        .status-suspended { background: #fee2e2; color: #991b1b; }
+        .status-deleted { background: #e5e7eb; color: #6b7280; }
+        .status-pending { background: #fef3c7; color: #92400e; }
+
+        .section-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin: 2rem 0 1rem;
+        }
+        .section-label:first-child { margin-top: 0.5rem; }
+
+        .user-count {
+            background: var(--secondary-color);
+            padding: 0.15rem 0.5rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-left: 0.4rem;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -34,13 +178,123 @@
         <main class="dashboard-content single-column">
             <section class="card glass-card">
                 <div class="admin-tabs">
-                    <button class="admin-tab-btn active" onclick="showTab('approvals', this)">User Approvals</button>
+                    <button class="admin-tab-btn active" onclick="showTab('users', this)">User Management</button>
+                    <button class="admin-tab-btn" onclick="showTab('approvals', this)">Approvals</button>
                     <button class="admin-tab-btn" onclick="showTab('financials', this)">Financials</button>
                     <button class="admin-tab-btn" onclick="showTab('support', this)">Support Inbox</button>
                 </div>
 
+                <!-- User Management Tab -->
+                <div id="users" class="admin-tab-content active">
+                    <h2>All Users</h2>
+
+                    <p class="section-label">Teachers <span class="user-count">{{ all_teachers|length }}</span></p>
+                    {% if all_teachers %}
+                        {% for teacher in all_teachers %}
+                        <div class="user-card">
+                            <div class="user-info">
+                                <div class="user-avatar {% if teacher.is_suspended %}suspended{% elif teacher.account_status == 'deleted' %}deleted{% endif %}">
+                                    {{ teacher.username[0]|upper }}
+                                </div>
+                                <div class="user-details">
+                                    <h4>{{ teacher.username }}</h4>
+                                    <p>
+                                        Referral: {{ teacher.referral_code or '—' }} · 
+                                        Classes: {{ teacher.courses|length }} ·
+                                        {% if teacher.is_suspended %}
+                                            <span class="status-badge status-suspended">Suspended</span>
+                                        {% elif teacher.account_status == 'deleted' %}
+                                            <span class="status-badge status-deleted">Deleted</span>
+                                        {% elif not teacher.is_approved %}
+                                            <span class="status-badge status-pending">Pending</span>
+                                        {% else %}
+                                            <span class="status-badge status-active">Active</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="user-actions">
+                                <!-- Role Dropdown -->
+                                <form action="{{ url_for('update_role', user_id=teacher.id) }}" method="POST" id="role-form-{{ teacher.id }}">
+                                    <select name="role" class="role-select" onchange="this.form.submit()">
+                                        <option value="teacher" {% if teacher.role == 'teacher' %}selected{% endif %}>Teacher</option>
+                                        <option value="student" {% if teacher.role == 'student' %}selected{% endif %}>Student</option>
+                                        <option value="parent" {% if teacher.role == 'parent' %}selected{% endif %}>Parent</option>
+                                        <option value="admin" {% if teacher.role == 'admin' %}selected{% endif %}>Admin</option>
+                                    </select>
+                                </form>
+                                {% if teacher.is_suspended %}
+                                    <form action="{{ url_for('unsuspend_user', user_id=teacher.id) }}" method="POST">
+                                        <button type="submit" class="btn-restore">Reactivate</button>
+                                    </form>
+                                {% else %}
+                                    <form action="{{ url_for('suspend_user', user_id=teacher.id) }}" method="POST">
+                                        <button type="submit" class="btn-warn">Suspend</button>
+                                    </form>
+                                {% endif %}
+                                <form action="{{ url_for('delete_user', user_id=teacher.id) }}" method="POST" onsubmit="return confirm('Permanently delete this user and all their data? This cannot be undone.')">
+                                    <button type="submit" class="btn-danger">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="muted" style="margin-top: 0.5rem;">No teachers registered yet.</p>
+                    {% endif %}
+
+                    <p class="section-label">Students <span class="user-count">{{ all_students|length }}</span></p>
+                    {% if all_students %}
+                        {% for student in all_students %}
+                        <div class="user-card">
+                            <div class="user-info">
+                                <div class="user-avatar {% if student.is_suspended %}suspended{% elif student.account_status == 'deleted' %}deleted{% endif %}" style="background: #8b5cf6;">
+                                    {{ student.username[0]|upper }}
+                                </div>
+                                <div class="user-details">
+                                    <h4>{{ student.username }}</h4>
+                                    <p>
+                                        Referred by: {{ student.referred_by or '—' }} ·
+                                        {% if student.is_suspended %}
+                                            <span class="status-badge status-suspended">Suspended</span>
+                                        {% elif student.account_status == 'deleted' %}
+                                            <span class="status-badge status-deleted">Deleted</span>
+                                        {% else %}
+                                            <span class="status-badge status-active">Active</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="user-actions">
+                                <form action="{{ url_for('update_role', user_id=student.id) }}" method="POST">
+                                    <select name="role" class="role-select" onchange="this.form.submit()">
+                                        <option value="student" {% if student.role == 'student' %}selected{% endif %}>Student</option>
+                                        <option value="teacher" {% if student.role == 'teacher' %}selected{% endif %}>Teacher</option>
+                                        <option value="parent" {% if student.role == 'parent' %}selected{% endif %}>Parent</option>
+                                        <option value="admin" {% if student.role == 'admin' %}selected{% endif %}>Admin</option>
+                                    </select>
+                                </form>
+                                {% if student.is_suspended %}
+                                    <form action="{{ url_for('unsuspend_user', user_id=student.id) }}" method="POST">
+                                        <button type="submit" class="btn-restore">Reactivate</button>
+                                    </form>
+                                {% else %}
+                                    <form action="{{ url_for('suspend_user', user_id=student.id) }}" method="POST">
+                                        <button type="submit" class="btn-warn">Suspend</button>
+                                    </form>
+                                {% endif %}
+                                <form action="{{ url_for('delete_user', user_id=student.id) }}" method="POST" onsubmit="return confirm('Permanently delete this user? This cannot be undone.')">
+                                    <button type="submit" class="btn-danger">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="muted" style="margin-top: 0.5rem;">No students registered yet.</p>
+                    {% endif %}
+                </div>
+
                 <!-- Approvals Tab -->
-                <div id="approvals" class="admin-tab-content active">
+                <div id="approvals" class="admin-tab-content">
                     <h2>Pending Teacher Approvals</h2>
                     {% if pending_teachers %}
                     <table class="minimal-table" style="margin-top: 1rem;">
@@ -123,5 +377,6 @@
             btn.classList.add('active');
         }
     </script>
+
 </body>
 </html>

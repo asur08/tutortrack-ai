@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - TutorTrack AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .settings-section {
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+        }
+        .settings-section h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+        .profile-row {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .profile-avatar {
+            width: 64px; height: 64px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; font-weight: 700;
+            flex-shrink: 0;
+        }
+        .profile-info h3 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+        .profile-info p { font-size: 0.9rem; color: var(--text-muted); }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .info-item label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-muted);
+            margin-bottom: 0.3rem;
+        }
+        .info-item span {
+            font-size: 0.95rem;
+            color: var(--text-main);
+        }
+
+        /* Danger Zone */
+        .danger-zone {
+            border: 1px solid #fecaca;
+            border-radius: 16px;
+            padding: 2rem;
+            background: #fef2f2;
+        }
+        .danger-zone h2 {
+            color: #dc2626;
+            font-size: 1.15rem;
+            margin-bottom: 0.5rem;
+        }
+        .danger-zone p {
+            font-size: 0.9rem;
+            color: #991b1b;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+        .btn-delete-account {
+            background-color: #dc2626;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-delete-account:hover {
+            background-color: #b91c1c;
+            transform: scale(0.98);
+        }
+
+        /* Confirmation Modal */
+        .confirm-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(6px);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .confirm-overlay.visible {
+            display: flex;
+        }
+        .confirm-box {
+            background: white;
+            border-radius: 18px;
+            padding: 2.5rem;
+            max-width: 420px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .confirm-box h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.75rem;
+            color: #dc2626;
+        }
+        .confirm-box p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+        .confirm-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+        .confirm-actions .btn-cancel {
+            background: var(--secondary-color);
+            color: var(--text-main);
+            padding: 0.7rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content glass-card">
+                <div class="header-title">
+                    <a href="{{ url_for('dashboard') }}" class="breadcrumbs" style="text-decoration: none;">← Back to Dashboard</a>
+                    <h1>Account <span>Settings</span></h1>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('logout') }}" class="btn btn-secondary btn-sm">Logout</a>
+                </div>
+            </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <main class="dashboard-content single-column">
+            <!-- Profile Section -->
+            <section class="settings-section glass-card">
+                <h2>Profile</h2>
+                <div class="profile-row">
+                    <div class="profile-avatar">{{ current_user.username[0]|upper }}</div>
+                    <div class="profile-info">
+                        <h3>{{ current_user.username }}</h3>
+                        <p>{{ current_user.role|capitalize }}</p>
+                    </div>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>Email</label>
+                        <span>{{ current_user.username }}</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Role</label>
+                        <span>{{ current_user.role|capitalize }}</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Verified</label>
+                        <span>{{ 'Yes' if current_user.is_verified else 'No' }}</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Referral Code</label>
+                        <span>{{ current_user.referral_code or '—' }}</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Danger Zone -->
+            {% if not current_user.is_superadmin %}
+            <section class="danger-zone">
+                <h2>⚠ Danger Zone</h2>
+                <p>Deleting your account is permanent. All your classes, students, and data will become inaccessible. This action cannot be undone.</p>
+                <button type="button" class="btn-delete-account" onclick="showDeleteModal()">Delete My Account</button>
+            </section>
+            {% endif %}
+        </main>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="confirm-overlay" id="deleteModal">
+        <div class="confirm-box">
+            <h3>Delete Your Account?</h3>
+            <p>Are you sure? This action cannot be undone. All your data, classes, and student records will be permanently removed.</p>
+            <div class="confirm-actions">
+                <button class="btn-cancel" onclick="hideDeleteModal()">Cancel</button>
+                <form action="{{ url_for('delete_my_account') }}" method="POST" style="margin: 0;">
+                    <button type="submit" class="btn-delete-account">Yes, Delete My Account</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showDeleteModal() {
+            document.getElementById('deleteModal').classList.add('visible');
+        }
+        function hideDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('visible');
+        }
+        // Close on overlay click
+        document.getElementById('deleteModal').addEventListener('click', function(e) {
+            if (e.target === this) hideDeleteModal();
+        });
+    </script>
+</body>
+</html>
